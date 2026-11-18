@@ -1,7 +1,14 @@
+using BloodLink.Data;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+// Database (SQL Server). Connection string is in appsettings.json → ConnectionStrings:DefaultConnection
+builder.Services.AddDbContext<BloodLinkDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
