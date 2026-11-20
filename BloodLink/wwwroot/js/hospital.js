@@ -15,9 +15,9 @@ function statusClass(status){return status.toLowerCase()}
 function priorityClass(p){return p.toLowerCase()}
 function formatDate(value){if(!value)return "—";const d=new Date(value+"T12:00:00");return Number.isNaN(d.getTime())?esc(value):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
 function recordStatusClass(status){return status==="Verified"?"verified":"pending-verification"}
-function recordMatches(r,q){return [r.id,r.donor,r.recipient,r.type,r.status,r.date].some(v=>String(v||"").toLowerCase().includes(q))}
+function recordMatches(r,q){return [r.id,r.donor,r.donorEmail,r.recipient,r.recipientEmail,r.type,r.status,r.date].some(v=>String(v||"").toLowerCase().includes(q))}
 function renderRecordRows(target,rows,withPrint=true){
- target.innerHTML=rows.length?rows.map(r=>`<tr><td><span class="request-id">${esc(r.id)}</span></td><td><b>${esc(r.donor)}</b></td><td>${esc(r.recipient)}</td><td><span class="blood-type">${esc(r.type)}</span></td><td>${Number(r.units)||0}</td><td>${formatDate(r.date)}</td><td><div class="record-actions"><button class="record-action print" data-print="${esc(r.id)}">Print</button></div></td></tr>`).join(""):'<tr><td colspan="7" class="empty-records">No donation records found.</td></tr>';
+ target.innerHTML=rows.length?rows.map(r=>`<tr><td><span class="request-id">${esc(r.id)}</span></td><td><b>${esc(r.donor)}</b>${r.donorEmail?`<small class="cell-subtext">${esc(r.donorEmail)}</small>`:""}</td><td>${esc(r.recipient)}${r.recipientEmail?`<small class="cell-subtext">${esc(r.recipientEmail)}</small>`:""}</td><td><span class="blood-type">${esc(r.type)}</span></td><td>${Number(r.units)||0}</td><td>${formatDate(r.date)}</td><td><span class="status-pill ${recordStatusClass(r.status)}">${esc(r.status)}</span></td><td><div class="record-actions"><button class="record-action print" data-print="${esc(r.id)}">Print</button></div></td></tr>`).join(""):'<tr><td colspan="8" class="empty-records">No donation records found.</td></tr>';
 }
 function renderRecords(){
  const verified=records.filter(r=>r.status==="Verified");
@@ -40,7 +40,7 @@ function printRecord(id){
  const r=records.find(x=>x.id===id);if(!r)return;
  const w=window.open("","_blank","width=800,height=700");
  if(!w){toast("Please allow pop-ups to print the donation record.");return}
- w.document.write(`<!doctype html><html><head><title>Donation Verification ${esc(r.id)}</title><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#222;padding:36px;max-width:760px;margin:auto}.brand{font-size:24px;font-weight:bold;color:#c91835}.sub{color:#666;font-size:12px}.rule{height:3px;background:#c91835;margin:18px 0 26px}.title{font-size:22px;margin-bottom:6px}.badge{display:inline-block;border:1px solid #16835b;color:#16835b;padding:6px 9px;border-radius:5px;font-size:12px;font-weight:bold}table{border-collapse:collapse;width:100%;margin-top:22px}td{border:1px solid #ddd;padding:12px;font-size:13px}td:first-child{width:36%;background:#f8f8fa;font-weight:bold}.note{margin-top:20px;padding:13px;background:#f8f8fa;font-size:12px}.signatures{display:flex;gap:50px;margin-top:65px}.signatures div{flex:1;border-top:1px solid #999;padding-top:9px;font-size:11px;color:#555}.foot{margin-top:45px;border-top:1px solid #ddd;padding-top:12px;font-size:10px;color:#777}</style></head><body><div class="brand">♥ BloodLink</div><div class="sub">HOSPITAL DONATION DOCUMENTATION</div><div class="rule"></div><h1 class="title">Donation Verification Record</h1><p>Record ID: <b>${esc(r.id)}</b> &nbsp; <span class="badge">${esc(r.status)}</span></p><p class="sub">Generated on ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"})}</p><table><tr><td>Donor full name</td><td>${esc(r.donor)}</td></tr><tr><td>Recipient / patient</td><td>${esc(r.recipient)}</td></tr><tr><td>Blood type</td><td>${esc(r.type)}</td></tr><tr><td>Units documented</td><td>${Number(r.units)||0}</td></tr><tr><td>Donation date</td><td>${formatDate(r.date)}</td></tr><tr><td>Verification status</td><td>${esc(r.status)}</td></tr></table><div class="note"><b>Hospital notes</b><br>${esc(r.notes||"No additional notes provided.")}</div><div class="signatures"><div>Authorized hospital staff</div><div>Recipient / authorized representative</div></div><div class="foot">BloodLink demo record. Official use requires verification by authorized hospital personnel and secure storage in the hospital system.</div><script>window.onload=()=>window.print();<\/script></body></html>`);
+ w.document.write(`<!doctype html><html><head><title>Donation Verification ${esc(r.id)}</title><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#222;padding:36px;max-width:760px;margin:auto}.brand{font-size:24px;font-weight:bold;color:#c91835}.sub{color:#666;font-size:12px}.rule{height:3px;background:#c91835;margin:18px 0 26px}.title{font-size:22px;margin-bottom:6px}.badge{display:inline-block;border:1px solid #16835b;color:#16835b;padding:6px 9px;border-radius:5px;font-size:12px;font-weight:bold}table{border-collapse:collapse;width:100%;margin-top:22px}td{border:1px solid #ddd;padding:12px;font-size:13px}td:first-child{width:36%;background:#f8f8fa;font-weight:bold}.note{margin-top:20px;padding:13px;background:#f8f8fa;font-size:12px}.signatures{display:flex;gap:50px;margin-top:65px}.signatures div{flex:1;border-top:1px solid #999;padding-top:9px;font-size:11px;color:#555}.foot{margin-top:45px;border-top:1px solid #ddd;padding-top:12px;font-size:10px;color:#777}</style></head><body><div class="brand">♥ BloodLink</div><div class="sub">HOSPITAL DONATION DOCUMENTATION</div><div class="rule"></div><h1 class="title">Donation Verification Record</h1><p>Record ID: <b>${esc(r.id)}</b> &nbsp; <span class="badge">${esc(r.status)}</span></p><p class="sub">Generated on ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"})}</p><table><tr><td>Donor full name</td><td>${esc(r.donor)}</td></tr><tr><td>Donor email</td><td>${esc(r.donorEmail||"—")}</td></tr><tr><td>Recipient / patient</td><td>${esc(r.recipient)}</td></tr><tr><td>Recipient email</td><td>${esc(r.recipientEmail||"—")}</td></tr><tr><td>Blood type</td><td>${esc(r.type)}</td></tr><tr><td>Units documented</td><td>${Number(r.units)||0}</td></tr><tr><td>Donation date</td><td>${formatDate(r.date)}</td></tr><tr><td>Verification status</td><td>${esc(r.status)}</td></tr></table><div class="note"><b>Hospital notes</b><br>${esc(r.notes||"No additional notes provided.")}</div><div class="signatures"><div>Authorized hospital staff</div><div>Recipient / authorized representative</div></div><div class="foot">BloodLink demo record. Official use requires verification by authorized hospital personnel and secure storage in the hospital system.</div><script>window.onload=()=>window.print();<\/script></body></html>`);
  w.document.close();
 }
 function renderInventory(){
@@ -114,19 +114,29 @@ function renderDonors(){
   <td><a class="donor-email-link" href="mailto:${encodeURIComponent(d.email)}">${esc(d.email)}</a></td>
   <td><span class="blood-type">${esc(d.type)}</span></td>
   <td>${esc(d.location)}</td>
-  <td>${esc(d.last)}</td>
-  <td><span class="status-pill ${d.availability==="Available"?"fulfilled":"pending"}">${esc(d.availability)}</span></td>
-  <td><button class="donor-action" type="button" data-email-donor="${esc(d.email)}">Email</button></td>
- </tr>`).join("")||'<tr><td colspan="7" class="empty-records">No donors match your filters.</td></tr>';
+  <td>${esc(d.last)}<small class="cell-subtext">${d.donations} donation${d.donations===1?"":"s"} here</small></td>
+  <td><span class="status-pill ${d.availability==="Available"?"fulfilled":"pending"}">${esc(d.availability)}</span>${d.availableAgainOn?`<small class="cell-subtext">again on ${formatDate(d.availableAgainOn)}</small>`:""}</td>
+  <td><button class="donor-action" type="button" data-email-donor="${esc(d.email)}"${d.availability==="Available"?"":" disabled title=\"Not available right now\""}>Email</button></td>
+ </tr>`).join("")||`<tr><td colspan="7" class="empty-records">${donors.length?"No donors match your filters.":"No donors yet. Donors appear here after you save a donation record with their email."}</td></tr>`;
+}
+// Sends a "we need blood" email to donors — POST /api/hospital/donors/email.
+// The server sends one email per donor and skips donors who are not available.
+async function sendDonorEmails(emails){
+ const bloodType=$("donorBloodFilter")?.value||"all";
+ try{
+  const r=await Api.post("/api/hospital/donors/email",{emails,bloodType:bloodType==="all"?"":bloodType});
+  toast(`Email sent to ${r.sent} donor${r.sent===1?"":"s"}${r.skipped?` · ${r.skipped} not available (skipped)`:""}${r.failed?` · ${r.failed} failed`:""}.`);
+  if(r.sent)bloodBurst("#13895f");
+ }catch(err){toast(err.message)}
 }
 function emailFilteredDonors(){
  const filtered=getFilteredDonors();
  if(!filtered.length){toast("No donors match the current filters.");return}
- const recipients=filtered.map(d=>d.email).filter(Boolean);
- const subject="Blood donation invitation — BloodLink";
- const body="Hello,\\n\\nWe hope you are doing well. Our hospital is checking whether previous donors may be willing and eligible to donate blood again. If you are interested, please reply to coordinate with the hospital team. Please donate only if you meet the medical eligibility requirements and enough time has passed since your last donation.\\n\\nThank you for helping save lives.\\nAl Hayat Hospital — BloodLink";
- const mailto=`mailto:?bcc=${encodeURIComponent(recipients.join(","))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
- window.location.href=mailto;
+ const available=filtered.filter(d=>d.availability==="Available").length;
+ if(!available){toast("None of these donors is available right now.");return}
+ const bloodType=$("donorBloodFilter")?.value||"all";
+ if(!confirm(`Send a blood donation request${bloodType==="all"?"":` for ${bloodType}`} to ${available} available donor${available===1?"":"s"}?`))return;
+ sendDonorEmails(filtered.map(d=>d.email));
 }
 
 document.querySelectorAll(".nav-item[data-section]").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();navigate(a.dataset.section)}));
@@ -145,9 +155,12 @@ $("donationDate").value=new Date().toISOString().slice(0,10);
 $("donationForm").addEventListener("submit",async e=>{e.preventDefault();const form=e.currentTarget;const fd=new FormData(form);
  // POST /api/hospital/records — the server returns the saved record.
  let rec;
- try{rec=await Api.post("/api/hospital/records",{donor:fd.get("donor").trim(),recipient:fd.get("recipient").trim(),type:fd.get("type"),units:Number(fd.get("units")),date:fd.get("date"),notes:fd.get("notes").trim()})}
+ try{rec=await Api.post("/api/hospital/records",{donor:fd.get("donor").trim(),donorEmail:fd.get("donorEmail").trim(),recipient:fd.get("recipient").trim(),recipientEmail:fd.get("recipientEmail").trim(),type:fd.get("type"),units:Number(fd.get("units")),date:fd.get("date"),notes:fd.get("notes").trim()})}
  catch(err){toast(err.message);return}
- records.unshift(rec);form.reset();$("donationDate").value=new Date().toISOString().slice(0,10);renderRecords();bloodBurst();flashRow(rec.id);toast(`Donation record ${rec.id} saved.`);$("recordTableCount")?.scrollIntoView({behavior:"smooth",block:"center"});});
+ records.unshift(rec);form.reset();
+ // the donor is now in the directory → reload it
+ Api.get("/api/hospital/donors").then(list=>{donors=list;renderDonors()}).catch(()=>{});
+ $("donationDate").value=new Date().toISOString().slice(0,10);renderRecords();bloodBurst();flashRow(rec.id);toast(`Donation record ${rec.id} saved.`);$("recordTableCount")?.scrollIntoView({behavior:"smooth",block:"center"});});
 
 $("donorSearch").addEventListener("input",renderDonors);
 $("donorBloodFilter")?.addEventListener("change",renderDonors);
@@ -155,10 +168,10 @@ $("donorAvailabilityFilter")?.addEventListener("change",renderDonors);
 $("emailDonorsButton")?.addEventListener("click",emailFilteredDonors);
 $("donorTableBody")?.addEventListener("click",e=>{
  const button=e.target.closest("[data-email-donor]");
- if(button)window.location.href=`mailto:${encodeURIComponent(button.dataset.emailDonor)}?subject=${encodeURIComponent("Blood donation invitation — BloodLink")}`;
+ if(button&&confirm(`Send a blood donation request to ${button.dataset.emailDonor}?`))sendDonorEmails([button.dataset.emailDonor]);
 });
 $("exportReport").addEventListener("click",()=>{
- const rows=[["Record ID","Donor","Recipient / Patient","Blood Type","Units","Donation Date","Verification Status","Notes"],...records.map(r=>[r.id,r.donor,r.recipient,r.type,r.units,r.date,r.status,r.notes])];
+ const rows=[["Record ID","Donor","Donor Email","Recipient / Patient","Recipient Email","Blood Type","Units","Donation Date","Verification Status","Notes"],...records.map(r=>[r.id,r.donor,r.donorEmail,r.recipient,r.recipientEmail,r.type,r.units,r.date,r.status,r.notes])];
  const csv=rows.map(row=>row.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="bloodlink-donation-verification-report.csv";a.click();URL.revokeObjectURL(url);toast("Donation verification CSV exported.");
 });

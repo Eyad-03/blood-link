@@ -96,6 +96,22 @@ The JWT settings are in `appsettings.json` → `Jwt`. Change `Jwt:Key` to your o
 | Anyone | Report an issue | `POST /api/reports` |
 | Admin | Verify hospitals, suspend users, bookings, reports | `/api/admin/...` |
 
+### Donor directory + "we need blood" emails
+
+- **Donation verification** asks for the donor's and the recipient's email. A donor with a BloodLink
+  account (same email) is linked: the donation counts on their profile and starts the 3-month rest.
+- **Donor directory** shows only donors who donated at *this* hospital (from its verified records),
+  with the number of donations, last donation and availability.
+- **Send to All Email** / **Email** sends a real email from the server (`Helpers/EmailSender.cs`) —
+  one email per donor, donors who are not available are skipped. If a blood type filter is chosen,
+  the email says which blood is needed.
+
+Email setup (Gmail example):
+1. Turn on 2-Step Verification on the Gmail account, then create an **App password**
+   (<https://myaccount.google.com/apppasswords>).
+2. `appsettings.json` → `Email:UserName` = the Gmail address (Host `smtp.gmail.com`, Port `587`, EnableSsl `true`).
+3. Put the app password in **User Secrets** (not in Git): `{ "Email": { "Password": "xxxx xxxx xxxx xxxx" } }`
+
 ### Payments — Visa only, with Stripe
 
 Every payment on BloodLink (hospital ads, hall bookings on the dashboard and on the Hall page)

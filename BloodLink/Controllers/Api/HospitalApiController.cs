@@ -15,7 +15,12 @@ namespace BloodLink.Controllers.Api
     [Route("api/hospital")]
     public class HospitalApiController : ApiBaseController
     {
-        public HospitalApiController(BloodLinkDbContext db) : base(db) { }
+        private readonly EmailSender emailSender;
+
+        public HospitalApiController(BloodLinkDbContext db, EmailSender emailSender) : base(db)
+        {
+            this.emailSender = emailSender;
+        }
 
         // The organization of the signed-in staff member.
         private int MyOrgId => CurrentUser()?.OrganizationId ?? 0;
@@ -78,16 +83,24 @@ namespace BloodLink.Controllers.Api
             if (string.IsNullOrWhiteSpace(dto.Donor) || string.IsNullOrWhiteSpace(dto.Recipient) || type == null || date == null || dto.Units < 1)
                 return BadRequest(new { message = "Please fill in all the donation details." });
 
-            // If the donor has an account with the same name, link it (it counts on his profile).
+            string donorEmail = dto.DonorEmail.Trim().ToLower();
+            string recipientEmail = dto.RecipientEmail.Trim().ToLower();
+            if (!IsEmail(donorEmail)) return BadRequest(new { message = "Please enter a valid donor email." });
+            if (!IsEmail(recipientEmail)) return BadRequest(new { message = "Please enter a valid recipient email." });
+
+            // If the donor has a BloodLink account with this email, link it
+            // (the donation counts on their profile and starts the 3-month rest).
             string donorName = dto.Donor.Trim();
-            var donorUser = db.Users.FirstOrDefault(u => u.Role == UserRole.Donor && u.FullName == donorName);
+            var donorUser = db.Users.FirstOrDefault(u => u.Role == UserRole.Donor && u.Email == donorEmail);
 
             var record = new DonationRecord
             {
                 OrganizationId = MyOrgId,
                 DonorId = donorUser?.Id,
                 DonorName = donorName,
+                DonorEmail = donorEmail,
                 RecipientName = dto.Recipient.Trim(),
+                RecipientEmail = recipientEmail,
                 BloodType = type.Value,
                 Units = dto.Units,
                 DonationDate = date.Value,
@@ -116,7 +129,9 @@ namespace BloodLink.Controllers.Api
             {
                 id = r.Id.ToString(),
                 donor = r.DonorName,
+                donorEmail = r.DonorEmail ?? "",
                 recipient = r.RecipientName,
+                recipientEmail = r.RecipientEmail ?? "",
                 type = Format.Blood(r.BloodType),
                 units = r.Units,
                 date = Format.Date(r.DonationDate),
@@ -127,22 +142,126 @@ namespace BloodLink.Controllers.Api
 
         // ---------------- Donor directory ----------------
 
+        // Only the donors who gave blood at THIS hospital (from its verified donation records).
         [HttpGet("donors")]
         public IActionResult Donors()
         {
-            var donors = db.Users.Where(u => u.Role == UserRole.Donor && u.Status == AccountStatus.Active)
-                .OrderBy(u => u.FullName).ToList();
-
-            return Ok(donors.Select(d => new
+            return Ok(MyDonors().Select(d => new
             {
-                name = d.FullName,
+                name = d.Name,
                 email = d.Email,
-                type = Format.Blood(d.BloodType),
-                location = string.Join(", ", new[] { d.Area, d.City }.Where(x => !string.IsNullOrEmpty(x))),
-                last = d.LastDonationDate == null ? "—" : d.LastDonationDate.Value.ToString("dd MMM yyyy"),
-                availability = d.IsAvailable ? "Available" : "Not active",
+                type = d.BloodType,
+                location = d.Location,
+                last = d.LastDonation.ToString("dd MMM yyyy"),
+                donations = d.Donations,
+                availability = d.Available ? "Available" : "Not active",
                 availableAgainOn = Format.Date(d.AvailableAgainOn)
             }));
+        }
+
+        // "Send email" on the Donor directory: one email per donor (nobody sees the others' addresses).
+        // Donors who are not available (e.g. resting after a donation) are skipped.
+        [HttpPost("donors/email")]
+        public IActionResult EmailDonors(EmailDonorsDto dto)
+        {
+            if (!emailSender.IsSetUp)
+                return BadRequest(new { message = "Email sending is not set up yet (appsettings.json → Email)." });
+
+            var org = db.Organizations.Find(MyOrgId)!;
+            var wanted = dto.Emails.Select(e => e.Trim().ToLower()).ToHashSet();
+            // Only donors from this hospital's directory can be emailed.
+            var donors = MyDonors().Where(d => wanted.Contains(d.Email)).ToList();
+
+            int sent = 0, skipped = 0, failed = 0;
+            foreach (var donor in donors)
+            {
+                if (!donor.Available) { skipped++; continue; }
+                try
+                {
+                    emailSender.Send(donor.Email, $"{org.Name} needs blood donors", DonationRequestEmail(org, donor.Name, dto.BloodType));
+                    sent++;
+                }
+                catch (Exception)
+                {
+                    failed++;   // e.g. wrong SMTP password or the mail server is down
+                }
+            }
+
+            if (sent == 0 && failed > 0)
+                return StatusCode(502, new { message = "The emails could not be sent. Check the Email settings." });
+            return Ok(new { sent, skipped, failed });
+        }
+
+        // One donor in the directory (built from the donation records).
+        private class DirectoryDonor
+        {
+            public string Name = "", Email = "", BloodType = "", Location = "";
+            public DateOnly LastDonation;
+            public int Donations;
+            public bool Available;
+            public DateOnly? AvailableAgainOn;
+        }
+
+        private List<DirectoryDonor> MyDonors()
+        {
+            var records = db.DonationRecords
+                .Where(r => r.OrganizationId == MyOrgId && r.Status == DonationRecordStatus.Verified && r.DonorEmail != null)
+                .ToList();
+
+            var result = new List<DirectoryDonor>();
+            foreach (var group in records.GroupBy(r => r.DonorEmail!.ToLower()))
+            {
+                var last = group.OrderByDescending(r => r.DonationDate).First();
+                var user = db.Users.FirstOrDefault(u => u.Email == group.Key);
+                var donor = new DirectoryDonor
+                {
+                    Name = user?.FullName ?? last.DonorName,
+                    Email = group.Key,
+                    BloodType = Format.Blood(last.BloodType),
+                    Location = user == null ? "" : string.Join(", ", new[] { user.Area, user.City }.Where(x => !string.IsNullOrEmpty(x))),
+                    LastDonation = last.DonationDate,
+                    Donations = group.Count()
+                };
+
+                if (user != null)
+                {
+                    // Registered donor: use the availability from their account (3-month rest included).
+                    donor.Available = user.IsAvailable && user.Status == AccountStatus.Active;
+                    donor.AvailableAgainOn = user.AvailableAgainOn;
+                }
+                else
+                {
+                    // No account: available again 3 months after the last donation here.
+                    var again = last.DonationDate.AddMonths(DonationRules.RestMonths);
+                    donor.Available = again <= DateOnly.FromDateTime(DateTime.Now);
+                    donor.AvailableAgainOn = donor.Available ? null : again;
+                }
+                result.Add(donor);
+            }
+            return result.OrderBy(d => d.Name).ToList();
+        }
+
+        private static bool IsEmail(string text)
+        {
+            return System.Text.RegularExpressions.Regex.IsMatch(text, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+        }
+
+        // The email the donors receive.
+        private static string DonationRequestEmail(Organization org, string donorName, string? bloodType)
+        {
+            string e(string? v) => System.Net.WebUtility.HtmlEncode(v ?? "");
+            string need = string.IsNullOrWhiteSpace(bloodType) ? "blood" : $"<b>{e(bloodType)}</b> blood";
+            return $@"
+<div style=""font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1b1c28"">
+  <h2 style=""color:#c91835;margin-bottom:4px"">♥ BloodLink</h2>
+  <p>Hello {e(donorName)},</p>
+  <p><b>{e(org.Name)}</b> urgently needs {need} donors. You donated with us before —
+     if you feel well and are able to donate again, we would be very grateful.</p>
+  <p>📍 {e(org.Address ?? org.City)}<br>📞 {e(org.Phone ?? "")}</p>
+  <p>You can book a donation appointment on BloodLink, or contact the hospital directly.</p>
+  <p style=""color:#7a7b8d;font-size:12px"">Please only donate if you meet the medical requirements and at least 3 months have passed since your last donation.</p>
+  <p>Thank you for saving lives.<br>{e(org.Name)} — BloodLink</p>
+</div>";
         }
 
         // ---------------- Donation appointments ----------------
@@ -204,6 +323,7 @@ namespace BloodLink.Controllers.Api
                     OrganizationId = MyOrgId,
                     DonorId = a.DonorId,
                     DonorName = a.DonorName,
+                    DonorEmail = (a.DonorEmail ?? donor?.Email)?.ToLower(),   // → this hospital's Donor directory
                     RecipientName = "Blood bank stock",
                     BloodType = a.BloodType,
                     Units = 1,

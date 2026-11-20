@@ -573,6 +573,10 @@ namespace BloodLink.Data.Migrations
                     b.Property<DateOnly>("DonationDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("DonorEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
                     b.Property<int?>("DonorId")
                         .HasColumnType("int");
 
@@ -587,6 +591,10 @@ namespace BloodLink.Data.Migrations
 
                     b.Property<int?>("OrganizationId")
                         .HasColumnType("int");
+
+                    b.Property<string>("RecipientEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("RecipientName")
                         .IsRequired()

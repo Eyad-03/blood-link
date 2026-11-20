@@ -783,3 +783,4 @@ body.onb-open{overflow:hidden}
 .pay-error{margin:8px 0 0;padding:9px 12px;border-radius:10px;background:#fff0f3;color:#9e0d28;font-size:12.5px;font-weight:600}
 .pay-error[hidden]{display:none}
 #payButton[disabled],#hbPayButton[disabled],#confirmPayment[disabled]{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+.donor-action[disabled]{opacity:.45;cursor:not-allowed}

@@ -33,6 +33,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+// Sends emails with SMTP (Helpers/EmailSender.cs, settings in appsettings.json → Email).
+builder.Services.AddSingleton<EmailSender>();
+
 // Turns donors back on 3 months after their donation (Helpers/DonationRules.cs).
 builder.Services.AddHostedService<DonorReactivationService>();
 

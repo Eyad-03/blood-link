@@ -14,11 +14,21 @@ namespace BloodLink.Models.Dtos
     public class CreateDonationRecordDto
     {
         public string Donor { get; set; } = "";
+        public string DonorEmail { get; set; } = "";
         public string Recipient { get; set; } = "";
+        public string RecipientEmail { get; set; } = "";
         public string Type { get; set; } = "";
         public int Units { get; set; } = 1;
         public string Date { get; set; } = "";
         public string? Notes { get; set; }
+    }
+
+    // Hospital → Donor directory → "Send email".
+    // Emails = the donors shown on the page; BloodType = the blood type the hospital needs (optional).
+    public class EmailDonorsDto
+    {
+        public List<string> Emails { get; set; } = new();
+        public string? BloodType { get; set; }
     }
 
     // Hospital → new advertisement (after the checkout dialog).

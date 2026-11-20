@@ -22,6 +22,14 @@ namespace BloodLink.Models.Entities
         [Required, MaxLength(80)]
         public string RecipientName { get; set; } = string.Empty;   // e.g. "Patient #2841"
 
+        // Emails typed on the verification form. The donor email puts the donor
+        // in this hospital's Donor directory (so the hospital can email them later).
+        [MaxLength(256)]
+        public string? DonorEmail { get; set; }
+
+        [MaxLength(256)]
+        public string? RecipientEmail { get; set; }
+
         public BloodType BloodType { get; set; }
 
         public int Units { get; set; } = 1;
