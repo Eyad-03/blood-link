@@ -118,7 +118,9 @@ Setup:
    ```json
    { "Stripe": { "SecretKey": "sk_test_..." } }
    ```
-5. `Stripe:Currency` is `jod` (change it to `usd` if your Stripe account can't charge JOD).
+5. `Stripe:Currency`: prices on the site are in JOD. Most Stripe accounts can't charge JOD, so use `usd` —
+   the server converts at 1 JOD = 1.41 USD (fixed peg). For any other currency also set
+   `Stripe:ExchangeRate` (how many of that currency = 1 JOD). Use `jod` only if your account supports it.
 
 Test cards (any future expiry, any CVC): `4242 4242 4242 4242` Visa ✓ ·
 `4000 0025 0000 3155` Visa with 3D Secure · `5555 5555 5555 4444` Mastercard ✗ (refused) ·

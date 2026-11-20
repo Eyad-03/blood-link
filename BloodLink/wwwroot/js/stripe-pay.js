@@ -11,6 +11,7 @@
    ===================================================================== */
 (function () {
   let stripe = null;
+  let config = null;  // { publishableKey, currency, exchangeRate } from /api/payments/config
   let ready = null;   // the setup runs only once
 
   function loadScript(src) {
@@ -25,7 +26,7 @@
   function setup() {
     if (!ready) {
       ready = (async () => {
-        const config = await Api.get("/api/payments/config");
+        config = await Api.get("/api/payments/config");
         if (!config.publishableKey) throw new Error("Online payments are not set up yet.");
         try { await loadScript("https://js.stripe.com/v3/"); }
         catch { throw new Error("Could not load the payment form. Check your internet connection."); }
@@ -48,6 +49,13 @@
       }
     });
     card.mount(container);
+
+    // Prices are in JOD; if Stripe charges in another currency, say so under the card field.
+    const note = container.parentElement.querySelector(".visa-note");
+    if (note && config.currency !== "jod" && !note.dataset.rate) {
+      note.dataset.rate = "1";
+      note.textContent += ` You will be charged in ${config.currency.toUpperCase()} (1 JOD = ${config.exchangeRate} ${config.currency.toUpperCase()}).`;
+    }
 
     let brand = "unknown";
     const show = (text) => { if (errorBox) { errorBox.textContent = text; errorBox.hidden = !text; } };

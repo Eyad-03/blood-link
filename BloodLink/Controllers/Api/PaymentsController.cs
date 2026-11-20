@@ -1,3 +1,4 @@
+using System.Globalization;
 using BloodLink.Data;
 using BloodLink.Helpers;
 using BloodLink.Models.Dtos;
@@ -33,7 +34,22 @@ namespace BloodLink.Controllers.Api
             StripeConfiguration.ApiKey = config["Stripe:SecretKey"];
         }
 
-        private string Currency => (config["Stripe:Currency"] ?? "jod").ToLower();
+        private string Currency => (config["Stripe:Currency"] ?? "usd").ToLower();
+
+        // All prices on BloodLink are in JOD. If Stripe charges in another currency we convert first.
+        // 1 JOD = 1.41 USD (the dinar is pegged to the dollar). For any other currency set Stripe:ExchangeRate.
+        // Returns 0 when we don't know the rate.
+        private decimal ExchangeRate
+        {
+            get
+            {
+                if (decimal.TryParse(config["Stripe:ExchangeRate"], NumberStyles.Any, CultureInfo.InvariantCulture, out var rate) && rate > 0)
+                    return rate;
+                if (Currency == "jod") return 1m;
+                if (Currency == "usd") return 1.41m;
+                return 0;
+            }
+        }
         private bool IsSetUp => !string.IsNullOrEmpty(config["Stripe:SecretKey"]) && !string.IsNullOrEmpty(config["Stripe:PublishableKey"]);
 
         [AllowAnonymous]
@@ -41,7 +57,7 @@ namespace BloodLink.Controllers.Api
         public IActionResult Config()
         {
             // The publishable key (pk_...) is safe to send to the browser.
-            return Ok(new { publishableKey = IsSetUp ? config["Stripe:PublishableKey"] : "", currency = Currency });
+            return Ok(new { publishableKey = IsSetUp ? config["Stripe:PublishableKey"] : "", currency = Currency, exchangeRate = ExchangeRate });
         }
 
         // ---------------- Hall booking ----------------
@@ -111,6 +127,7 @@ namespace BloodLink.Controllers.Api
         {
             if (!IsSetUp) return BadRequest(new { message = "Online payments are not set up yet." });
             if (string.IsNullOrWhiteSpace(paymentMethodId)) return BadRequest(new { message = "Please enter your card details." });
+            if (ExchangeRate == 0) return BadRequest(new { message = $"Set Stripe:ExchangeRate in appsettings.json (how many {Currency.ToUpper()} = 1 JOD)." });
 
             try
             {
@@ -122,12 +139,12 @@ namespace BloodLink.Controllers.Api
                 // 2. Take the money.
                 var intent = await new PaymentIntentService().CreateAsync(new PaymentIntentCreateOptions
                 {
-                    Amount = ToStripeAmount(amount),
+                    Amount = ToStripeAmount(amount * ExchangeRate),   // JOD → Stripe currency
                     Currency = Currency,
                     PaymentMethod = paymentMethodId,
                     AllowedPaymentMethodTypes = new List<string> { "card" },   // cards only
                     Confirm = true,
-                    Description = description,
+                    Description = $"{description} ({amount:0.00} JOD)",
                     // Saved with the payment so /confirm knows what it was for and who paid.
                     Metadata = new Dictionary<string, string>
                     {
@@ -188,7 +205,7 @@ namespace BloodLink.Controllers.Api
             db.SaveChanges();
         }
 
-        // Stripe wants the amount in the smallest unit of the currency.
+        // Stripe wants the amount in the smallest unit of the currency (the amount is already converted).
         // JOD has 3 decimals (1 JOD = 1000 fils) and Stripe needs it rounded to 10 fils;
         // USD / EUR have 2 decimals (1 USD = 100 cents).
         private long ToStripeAmount(decimal amount)
