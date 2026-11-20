@@ -33,6 +33,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+// HttpClient for calling Ollama (the chatbot, Controllers/Api/ChatbotController.cs).
+builder.Services.AddHttpClient();
+
 // Sends emails with SMTP (Helpers/EmailSender.cs, settings in appsettings.json → Email).
 builder.Services.AddSingleton<EmailSender>();
 

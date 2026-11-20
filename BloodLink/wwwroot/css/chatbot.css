@@ -1,0 +1,55 @@
+/* BloodLink Assistant (chatbot.js) — round button + chat window, bottom right of every page */
+.bl-bot{position:fixed;right:22px;bottom:22px;z-index:9000;font:14px/1.5 "DM Sans",system-ui,sans-serif;color:#1b1c28}
+.bl-bot *{box-sizing:border-box}
+
+/* round button */
+.bl-bot-fab{width:60px;height:60px;border:0;border-radius:50%;cursor:pointer;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(145deg,#ef4562,#b5122f);box-shadow:0 12px 28px rgba(212,29,61,.38);transition:transform .2s}
+.bl-bot-fab:hover{transform:translateY(-2px) scale(1.04)}
+.bl-bot-fab svg{width:28px;height:28px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linejoin:round}
+.bl-bot.open .bl-bot-fab{transform:rotate(-8deg)}
+
+/* window */
+.bl-bot-panel{position:absolute;right:0;bottom:76px;width:min(370px,calc(100vw - 32px));height:min(540px,calc(100vh - 120px));
+  display:flex;flex-direction:column;background:#fff;border-radius:22px;overflow:hidden;
+  box-shadow:0 24px 60px rgba(20,18,40,.25);border:1px solid #efe9ee;animation:blBotIn .25s ease}
+.bl-bot-panel[hidden]{display:none}
+.bl-bot-head{display:flex;align-items:center;gap:10px;padding:14px 14px 14px 16px;color:#fff;background:linear-gradient(135deg,#d41d3d,#9e0d28)}
+.bl-bot-head div{flex:1;min-width:0}
+.bl-bot-head b{display:block;font-size:14.5px}
+.bl-bot-head small{opacity:.8;font-size:11.5px}
+.bl-bot-avatar{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.18);font-size:18px}
+.bl-bot-icon-btn{width:30px;height:30px;border:0;border-radius:9px;background:rgba(255,255,255,.16);color:#fff;font-size:17px;cursor:pointer}
+.bl-bot-icon-btn:hover{background:rgba(255,255,255,.28)}
+
+/* messages */
+.bl-bot-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:9px;background:#faf8fa}
+.bl-bot-msg{max-width:85%;padding:9px 12px;border-radius:16px;font-size:13.5px;white-space:normal;word-wrap:break-word}
+.bl-bot-msg.bot{align-self:flex-start;background:#fff;border:1px solid #efe9ee;border-bottom-left-radius:5px}
+.bl-bot-msg.me{align-self:flex-end;background:#d41d3d;color:#fff;border-bottom-right-radius:5px}
+.bl-bot-msg.error{background:#fff0f3;border-color:#f7d4dc;color:#9e0d28}
+
+/* suggestions */
+.bl-bot-suggest{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 8px;background:#faf8fa}
+.bl-bot-suggest:empty{display:none}
+.bl-bot-suggest button{border:1px solid #f2c9d1;background:#fff;color:#b5122f;border-radius:999px;padding:6px 10px;font:600 12px "DM Sans",sans-serif;cursor:pointer}
+.bl-bot-suggest button:hover{background:#fff0f3}
+
+/* input */
+.bl-bot-form{display:flex;gap:8px;padding:10px;border-top:1px solid #f1edf1;background:#fff}
+.bl-bot-form input{flex:1;min-width:0;border:1px solid #e7e3ea;border-radius:12px;padding:10px 12px;font:inherit;outline:0}
+.bl-bot-form input:focus{border-color:#d41d3d;box-shadow:0 0 0 3px rgba(212,29,61,.1)}
+.bl-bot-form button{width:42px;border:0;border-radius:12px;background:#d41d3d;color:#fff;font-size:16px;cursor:pointer}
+.bl-bot-form button:disabled{opacity:.5;cursor:wait}
+.bl-bot-note{margin:0;padding:0 12px 8px;background:#fff;color:#9a9aa8;font-size:10.5px;text-align:center}
+
+/* "typing…" dots */
+.bl-bot-typing{display:inline-flex;gap:4px;padding:3px 0}
+.bl-bot-typing i{width:6px;height:6px;border-radius:50%;background:#d41d3d;opacity:.35;animation:blBotDot 1s infinite}
+.bl-bot-typing i:nth-child(2){animation-delay:.15s}
+.bl-bot-typing i:nth-child(3){animation-delay:.3s}
+
+@keyframes blBotIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes blBotDot{0%,100%{opacity:.35;transform:none}50%{opacity:1;transform:translateY(-3px)}}
+@media (max-width:480px){.bl-bot{right:14px;bottom:14px}.bl-bot-fab{width:54px;height:54px}}
+@media (prefers-reduced-motion:reduce){.bl-bot-panel,.bl-bot-typing i,.bl-bot-fab{animation:none;transition:none}}
