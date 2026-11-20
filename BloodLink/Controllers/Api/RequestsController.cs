@@ -41,7 +41,7 @@ namespace BloodLink.Controllers.Api
                 Priority = priority,
                 Units = 1,
                 Location = me.City,
-                Message = dto.Message
+                Message = string.IsNullOrWhiteSpace(dto.Message) ? null : dto.Message.Trim()
             };
             db.BloodRequests.Add(request);
             db.SaveChanges();
@@ -56,6 +56,7 @@ namespace BloodLink.Controllers.Api
         {
             var rows = db.BloodRequests
                 .Include(r => r.Donor)
+                .Include(r => r.Recipient)   // needed for the distance
                 .Where(r => r.RecipientId == CurrentUserId)
                 .OrderByDescending(r => r.CreatedAt)
                 .ToList();
@@ -71,7 +72,7 @@ namespace BloodLink.Controllers.Api
                     donorInitials = Format.Initials(r.Donor.FullName),
                     bloodType = Format.Blood(r.BloodType),
                     location = string.Join(", ", new[] { r.Donor.Area, r.Donor.City }.Where(x => !string.IsNullOrEmpty(x))),
-                    distance = "",
+                    distance = Format.DistanceText(r.Donor, r.Recipient),
                     sentAt = Format.Friendly(r.CreatedAt),
                     dateValue = Format.Iso(r.CreatedAt),
                     status = r.Status.ToString(),
@@ -92,6 +93,7 @@ namespace BloodLink.Controllers.Api
         {
             var rows = db.BloodRequests
                 .Include(r => r.Recipient)
+                .Include(r => r.Donor)       // needed for the distance
                 .Include(r => r.Hospital)
                 .Where(r => r.DonorId == CurrentUserId)
                 .OrderByDescending(r => r.CreatedAt)
@@ -107,7 +109,7 @@ namespace BloodLink.Controllers.Api
                     initials = Format.Initials(r.Recipient.FullName),
                     bloodType = Format.Blood(r.BloodType),
                     location = r.Location ?? r.Recipient.City ?? "",
-                    distance = "",
+                    distance = Format.DistanceText(r.Donor, r.Recipient),
                     sentAt = Format.Friendly(r.CreatedAt),
                     dateValue = Format.Iso(r.CreatedAt),
                     status = r.Status.ToString(),

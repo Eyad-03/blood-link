@@ -4351,3 +4351,36 @@ body.modal-open {
         grid-template-columns: 1fr
     }
 }
+
+/* Optional message in the "Send request" window */
+.request-message {
+    display: grid;
+    gap: 6px;
+    margin-top: 14px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #222b3d
+}
+
+    .request-message small {
+        font-weight: 500;
+        color: #838da0
+    }
+
+    .request-message textarea {
+        width: 100%;
+        border: 1px solid #e3e6ee;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        color: #222b3d;
+        resize: vertical;
+        outline: 0
+    }
+
+        .request-message textarea:focus {
+            border-color: #d41d3d;
+            box-shadow: 0 0 0 3px rgba(212,29,61,.1)
+        }

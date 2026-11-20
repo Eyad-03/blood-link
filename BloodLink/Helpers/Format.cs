@@ -94,6 +94,28 @@ namespace BloodLink.Helpers
             return Math.Round(R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a)), 1);
         }
 
+        // Where is this user on the map?
+        //   1. the exact point, if the donor chose to share it
+        //   2. otherwise the centre of the user's city
+        //   3. otherwise null (we don't know)
+        public static (double Lat, double Lng)? PointOf(User user)
+        {
+            if (user.ShareLocation && user.Latitude != null && user.Longitude != null)
+                return (user.Latitude.Value, user.Longitude.Value);
+            if (user.City != null && Cities.ContainsKey(user.City))
+                return Cities[user.City];
+            return null;
+        }
+
+        // Distance text between two users, e.g. "2.4 km away" ("" when one location is unknown).
+        public static string DistanceText(User a, User b)
+        {
+            var p1 = PointOf(a);
+            var p2 = PointOf(b);
+            if (p1 == null || p2 == null) return "";
+            return DistanceKm(p1.Value.Lat, p1.Value.Lng, p2.Value.Lat, p2.Value.Lng) + " km away";
+        }
+
         // Centre of each city, used when a user has no exact location on the map.
         public static readonly Dictionary<string, (double Lat, double Lng)> Cities = new()
         {

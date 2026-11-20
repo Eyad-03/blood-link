@@ -26,16 +26,9 @@ namespace BloodLink.Controllers.Api
             var result = new List<object>();
             foreach (var d in donors)
             {
-                // No exact location shared → use the centre of the donor's city.
-                double lat = from.Lat, lng = from.Lng;
-                if (d.ShareLocation && d.Latitude != null && d.Longitude != null)
-                {
-                    lat = d.Latitude.Value; lng = d.Longitude.Value;
-                }
-                else if (d.City != null && Format.Cities.ContainsKey(d.City))
-                {
-                    lat = Format.Cities[d.City].Lat; lng = Format.Cities[d.City].Lng;
-                }
+                // Exact point if shared, else the centre of the donor's city (see Format.PointOf).
+                var point = Format.PointOf(d) ?? from;
+                double lat = point.Lat, lng = point.Lng;
 
                 result.Add(new
                 {
