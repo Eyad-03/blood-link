@@ -2,34 +2,29 @@
    BloodLink — Donation appointments (donor side)
    Donor books a visit, answers a quick eligibility check, and the hospital
    approves it with a confirmed date and time (/Hospital → Appointments).
-   Shared storage key: bloodlinkDonationAppointments
+   Data is saved on the server (Controllers/Api/AppointmentsController.cs):
+     GET /api/facilities, GET /api/appointments/mine, POST /api/appointments,
+     PUT /api/appointments/{id}/cancel, POST /api/appointments/notified
    ===================================================================== */
 const $ = id => document.getElementById(id);
-const KEY = "bloodlinkDonationAppointments";
-const DEVICE_KEY = "bloodlinkDeviceId";
+Api.requireLogin(["Donor"]);
 const DRAFT_KEY = "bloodlinkDonorProfileDraft";
 const MIN_WEIGHT = 50, MIN_AGE = 18, MAX_AGE = 65, WAIT_DAYS = 56, BOOK_AHEAD_DAYS = 60;
 
-/* Verified facilities (same organizations as the admin console). */
-const FACILITIES = [
-  { id: "ORG-1031", name: "Al Hayat Hospital", type: "Hospital", city: "Irbid", address: "University Street, Irbid", open: "08:00", close: "16:00" },
-  { id: "ORG-1026", name: "Jerash Family Hospital", type: "Hospital", city: "Jerash", address: "Amman–Jerash Road, Jerash", open: "08:00", close: "15:00" },
-  { id: "ORG-1028", name: "Aqaba Red Crescent Center", type: "Blood donation center", city: "Aqaba", address: "Aqaba city center", open: "09:00", close: "15:00" }
-];
+/* Verified hospitals / centers — loaded from GET /api/facilities */
+let FACILITIES = [];
 const facilityById = id => FACILITIES.find(f => f.id === id);
 
 /* ---------- storage ---------- */
 const read = (k, fb) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb } catch { return fb } };
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { } };
-function deviceId() {
-  let id = ""; try { id = localStorage.getItem(DEVICE_KEY) || "" } catch { }
-  if (!id) { id = "D-" + Math.random().toString(36).slice(2, 10).toUpperCase(); try { localStorage.setItem(DEVICE_KEY, id) } catch { } }
-  return id;
+/* My appointments — loaded from GET /api/appointments/mine */
+let all = [];
+const mine = () => [...all].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+async function loadAppointments() {
+  try { all = await Api.get("/api/appointments/mine"); } catch (err) { toast(err.message); }
+  render();
 }
-const ME = deviceId();
-let all = read(KEY, []);
-const mine = () => all.filter(a => a.ownerId === ME).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-const saveAll = () => write(KEY, all);
 
 /* ---------- helpers ---------- */
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -60,6 +55,7 @@ function renderFacilities() {
 }
 function renderTimes() {
   const sel = $("apTime"), keep = sel.value, f = facilityById(facilityId) || FACILITIES[0];
+  if (!f) { sel.innerHTML = '<option value="">Select a time</option>'; return; }
   const [oh, om] = f.open.split(":").map(Number), [ch, cm] = f.close.split(":").map(Number);
   let mins = oh * 60 + om; const end = ch * 60 + cm - 30, opts = ['<option value="">Select a time</option>'];
   for (; mins <= end; mins += 30) { const t = `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`; opts.push(`<option value="${t}">${fmtTime(t)}</option>`) }
@@ -128,16 +124,12 @@ function renderEligibility() {
 }
 
 /* ---------- submit ---------- */
-function nextId() {
-  const nums = all.map(a => Number(String(a.id).split("-").pop()) || 0);
-  return `AP-${new Date().getFullYear()}-${String(Math.max(20, ...nums) + 1).padStart(3, "0")}`;
-}
 function fail(msg, el) {
   const box = $("formError"); box.textContent = msg; box.hidden = false;
   box.scrollIntoView({ behavior: "smooth", block: "center" });
   el?.focus?.({ preventScroll: true });
 }
-function submitBooking(ev) {
+async function submitBooking(ev) {
   ev.preventDefault();
   $("formError").hidden = true;
   const f = facilityById(facilityId);
@@ -153,19 +145,21 @@ function submitBooking(ev) {
   if (e.blockers.length) return fail(e.blockers[0]);
   if (!e.answered) return fail("Please answer every eligibility question.");
   if (!form.elements.consent.checked) return fail("Please confirm that your answers are true.", form.elements.consent);
-  const now = new Date().toISOString();
-  const rec = {
-    id: nextId(), ownerId: ME, facilityId: f.id, facilityName: f.name, facilityType: f.type, facilityCity: f.city,
+  const data = {
+    facilityId: f.id,
     donor: { name: val("name"), phone: val("phone"), email: val("email"), type: val("type") },
     requestedDate: val("date"), requestedTime: val("time"), notes: val("notes"),
     eligibility: {
       age: Number(val("age")), weight: Number(val("weight")), lastDonation: val("lastDonation"),
       well: radio("well"), meds: radio("meds"), medsDetail: val("medsDetail"), travel: radio("travel"), travelDetail: val("travelDetail"), procedure: radio("procedure"),
       state: e.state, flags: e.flags
-    },
-    status: "Pending", confirmedDate: "", confirmedTime: "", hospitalNote: "", declineReason: "", donorNotified: true, createdAt: now, updatedAt: now
+    }
   };
-  all.unshift(rec); saveAll();
+  // POST /api/appointments — the server returns the saved appointment.
+  let rec;
+  try { rec = await Api.post("/api/appointments", data); }
+  catch (err) { return fail(err.message); }
+  all.unshift(rec);
   write(DRAFT_KEY, { name: rec.donor.name, phone: rec.donor.phone, email: rec.donor.email, type: rec.donor.type, age: rec.eligibility.age, weight: rec.eligibility.weight, lastDonation: rec.eligibility.lastDonation });
   resetFormAfterSubmit();
   render();
@@ -244,7 +238,8 @@ function notifyChanges(list) {
   else if (a.status === "Declined") toast(`${a.facilityName} couldn't accept your request. Open it to see the reason.`);
   else if (a.status === "Cancelled") toast(`${a.facilityName} cancelled your appointment.`);
   else if (a.status === "Completed") toast("Thank you! Your donation was marked as completed.");
-  fresh.forEach(x => { const rec = all.find(r => r.id === x.id); if (rec) rec.donorNotified = true }); saveAll();
+  fresh.forEach(x => { x.donorNotified = true });
+  Api.post("/api/appointments/notified").catch(() => { });
 }
 
 /* ---------- events ---------- */
@@ -271,17 +266,22 @@ document.addEventListener("click", e => {
   if (cancel) {
     const a = all.find(x => x.id === cancel.dataset.cancel); if (!a) return;
     if (!confirm(`Cancel your ${a.status === "Approved" ? "appointment" : "request"} at ${a.facilityName}?`)) return;
-    a.status = "Cancelled"; a.cancelledBy = "donor"; a.updatedAt = new Date().toISOString(); saveAll(); render(); toast("Appointment cancelled."); return;
+    Api.put(`/api/appointments/${encodeURIComponent(a.id)}/cancel`)
+      .then(() => { toast("Appointment cancelled."); return loadAppointments(); })
+      .catch(err => toast(err.message));
+    return;
   }
   const re = e.target.closest("[data-rebook]");
   if (re) { facilityId = re.dataset.rebook; renderFacilities(); renderTimes(); $("bookingPanel").scrollIntoView({ behavior: "smooth", block: "start" }) }
 });
-window.addEventListener("storage", e => { if (e.key === KEY) { all = read(KEY, []); render() } });
 
 /* ---------- init ---------- */
 (function init() {
   const { min, max } = dateRange();
   $("apDate").min = min; $("apDate").max = max; $("apLast").max = todayStr();
   renderFacilities(); renderTimes(); applyDraft(); updateDateHint(); renderEligibility(); render();
+  // Load the hospitals list and my appointments from the server.
+  Api.get("/api/facilities").then(list => { FACILITIES = list; renderFacilities(); renderTimes(); }).catch(err => toast(err.message));
+  loadAppointments();
   if (location.hash === "#my") setTimeout(() => $("myAppointments").scrollIntoView(), 50);
 })();

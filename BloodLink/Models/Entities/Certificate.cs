@@ -15,9 +15,12 @@ namespace BloodLink.Models.Entities
 
         public int DonationCount { get; set; }
 
-        [Required, MaxLength(256)]
-        public string SentToEmail { get; set; } = string.Empty;
+        public DateTime IssuedAt { get; set; } = DateTime.UtcNow;
 
-        public DateTime SentAt { get; set; } = DateTime.UtcNow;
+        // Filled when the certificate is emailed to the donor.
+        [MaxLength(256)]
+        public string? SentToEmail { get; set; }
+
+        public DateTime? SentAt { get; set; }
     }
 }

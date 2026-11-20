@@ -1,20 +1,21 @@
 /* =====================================================================
    BloodLink chat — shared by /Donor/Requests and /Recipient/Requests
-   One conversation per request ID, stored in localStorage (demo persistence).
-   Replace load/store/push with API or WebSocket calls when a backend exists.
+   One conversation per request ID, saved on the server:
+     GET  /api/chat/unread        unread badges
+     GET  /api/chat/{requestId}   messages (also marks them as read)
+     POST /api/chat/{requestId}   send a message
+   (Controllers/Api/ChatController.cs). An open chat refreshes every few seconds.
 
    Usage on each page:
      BloodChat.init({me:"donor"})            // or "recipient"
      BloodChat.buttonHTML(requestId)         // "Chat" button with unread badge
      BloodChat.open(requestId,{name,initials,sub,meta:[[label,value],…],readOnly})
-     BloodChat.addSystem(requestId,text)     // centered system note
+     (system notes like "Request accepted" are added by the server)
      BloodChat.refreshBadges()               // call after re-rendering a list
    ===================================================================== */
 (function(){
 "use strict";
-const CHAT_KEY="bloodlinkChats",READ_KEY="bloodlinkChatRead",MAX_LEN=500,GROUP_MS=5*60*1000,INPUT_MAX_H=110;
-const load=(k,f)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}};
-const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+const MAX_LEN=500,GROUP_MS=5*60*1000,INPUT_MAX_H=110,POLL_MS=4000;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const svg=(d,s=13,w=2)=>`<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICON_CHAT=svg('<path d="M21 12a8 8 0 01-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1121 12z"/>');
@@ -29,40 +30,36 @@ const QUICK={
 };
 
 let me="recipient",current=null,opts={},ui=null,opener=null;
-const peer=()=>me==="donor"?"recipient":"donor";
 
-/* Demo: one conversation already exists for the accepted demo request. */
-function seed(){
-  try{
-    if(localStorage.getItem(CHAT_KEY)!==null)return;
-    const t=h=>new Date(Date.now()-h*36e5).toISOString();
-    store(CHAT_KEY,{"BR-2026-0198":[
-      {id:"seed1",from:"system",text:"Request accepted. You can now chat to coordinate the donation safely.",at:t(26)},
-      {id:"seed2",from:"recipient",text:"Thank you for accepting! Which hospital would suit you best this week?",at:t(25)}
-    ]});
-  }catch{}
-}
+/* ---------- data from the server ---------- */
+let unreadMap={};                          // { requestId: number of unread messages }
+let thread={messages:[],peerReadAt:""};    // the conversation that is open now
+let pollTimer=null;
 
-const messages=id=>load(CHAT_KEY,{})[id]||[];
-const readAt=(id,who)=>(load(READ_KEY,{})[id]||{})[who]||"";
-function markRead(id){const r=load(READ_KEY,{});(r[id]=r[id]||{})[me]=new Date().toISOString();store(READ_KEY,r)}
-function unread(id){const lr=readAt(id,me);return messages(id).filter(m=>m.from!=="system"&&m.from!==me&&m.at>lr).length}
+const unread=id=>unreadMap[id]||0;
 
-function push(id,from,text){
-  const chats=load(CHAT_KEY,{});
-  (chats[id]=chats[id]||[]).push({id:"m"+Date.now()+Math.random().toString(36).slice(2,6),from,text,at:new Date().toISOString()});
-  store(CHAT_KEY,chats);
-  changed();
-}
-
-function refreshBadges(){
+function paintBadges(){
   document.querySelectorAll("[data-chat-badge]").forEach(el=>{const n=unread(el.dataset.chatBadge);el.textContent=n>9?"9+":n;el.hidden=!n});
 }
-const isOpen=()=>!!ui&&!ui.backdrop.hidden;
-function changed(){
-  if(current&&isOpen()){markRead(current);render()}
-  refreshBadges();
+// Called by the pages after they re-render their list.
+async function refreshBadges(){
+  paintBadges();
+  try{unreadMap=await Api.get("/api/chat/unread")}catch{return}
+  paintBadges();
 }
+async function loadThread(){
+  if(!current)return;
+  const id=current;
+  try{
+    const data=await Api.get("/api/chat/"+encodeURIComponent(id));
+    if(id!==current)return;               // the user opened another chat meanwhile
+    const changed=data.messages.length!==thread.messages.length||data.peerReadAt!==thread.peerReadAt;
+    thread=data;unreadMap[id]=0;
+    if(changed)render();
+    paintBadges();
+  }catch{}
+}
+const isOpen=()=>!!ui&&!ui.backdrop.hidden;
 
 /* ---------- UI ---------- */
 function ensureUI(){
@@ -106,11 +103,13 @@ function autosize(){
   ui.input.style.height=Math.min(ui.input.scrollHeight,INPUT_MAX_H)+"px";
   ui.input.style.overflowY=ui.input.scrollHeight>INPUT_MAX_H?"auto":"hidden";
 }
-function submit(){
+async function submit(){
   const text=ui.input.value.trim().slice(0,MAX_LEN);
   if(!text||!current||opts.readOnly)return;
   ui.input.value="";autosize();ui.send.disabled=true;
-  push(current,me,text);
+  try{await Api.post("/api/chat/"+encodeURIComponent(current),{text})}
+  catch(err){ui.input.value=text;autosize();ui.send.disabled=false;alert(err.message);return}
+  await loadThread();
   ui.input.focus();
 }
 
@@ -124,7 +123,7 @@ function dayLabel(d){
 const SAFETY=`<div class="chat-safety"><span>${ICON_SHIELD}</span><p><b>Stay safe</b>Never share verification codes or financial details. Arrange the donation through a licensed hospital.</p></div>`;
 
 function render(){
-  const msgs=messages(current),seenAt=readAt(current,peer());
+  const msgs=thread.messages,seenAt=thread.peerReadAt||"";
   let html=SAFETY,lastDay="",prev=null;
   msgs.forEach((m,i)=>{
     const d=new Date(m.at),day=d.toDateString();
@@ -156,28 +155,23 @@ function open(id,o={}){
   ui.form.hidden=!!o.readOnly;ui.readonly.hidden=!o.readOnly;
   ui.input.value="";autosize();ui.send.disabled=true;
   ui.backdrop.hidden=false;document.body.style.overflow="hidden";
-  markRead(id);render();refreshBadges();
+  thread={messages:[],peerReadAt:""};render();
+  loadThread();
+  clearInterval(pollTimer);pollTimer=setInterval(loadThread,POLL_MS);   // check for new messages
   if(!o.readOnly)setTimeout(()=>ui.input.focus({preventScroll:true}),50);
 }
 function close(){
   if(!isOpen())return;
   ui.backdrop.hidden=true;current=null;document.body.style.overflow="";
+  clearInterval(pollTimer);pollTimer=null;
   refreshBadges();
   if(opener&&opener.isConnected)try{opener.focus({preventScroll:true})}catch{}
 }
 
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&isOpen()){e.stopPropagation();close()}},true);
-/* The other side wrote something / read the thread (other tab) → update live.
-   READ_KEY only re-renders (never writes) so two open tabs can't ping-pong. */
-window.addEventListener("storage",e=>{
-  if(e.key===CHAT_KEY)changed();
-  else if(e.key===READ_KEY&&isOpen())render();
-});
-
 window.BloodChat={
-  init(o={}){me=o.me==="donor"?"donor":"recipient";seed()},
+  init(o={}){me=o.me==="donor"?"donor":"recipient"},
   open,close,unread,refreshBadges,
-  addSystem(id,text){push(id,"system",text)},
   buttonHTML(id){const s=esc(id);return`<button class="small-btn chat-btn" type="button" data-chat="${s}">${ICON_CHAT}Chat<span class="chat-badge" data-chat-badge="${s}" hidden></span></button>`}
 };
 })();

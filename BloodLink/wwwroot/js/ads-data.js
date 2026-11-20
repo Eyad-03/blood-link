@@ -1,7 +1,9 @@
 /* =====================================================================
    BloodLink — shared advertisement data layer
    Used by the hospital dashboard (hospital.js) and the public ads page (ads.js).
-   Demo storage: localStorage. Replace load/save with API calls in production.
+   The ads are saved on the server (Controllers/Api/AdsController.cs).
+   A.fetchPublic() / A.fetchMine() load them, then A.load() returns the list.
+   When the list arrives, the event "bloodlink:ads" is fired on window.
    ===================================================================== */
 (function(){
  const KEY="bloodlinkHospitalAds";
@@ -34,32 +36,20 @@
   if(ad.endDate<now)return "Expired";
   return "Active";
  }
- function seed(){
-  const t=today();
-  const mk=(o)=>({views:0,cancelled:false,createdAt:new Date().toISOString(),...o,endDate:endDate(o.startDate,o.plan),...(()=>{const f=fees(o.plan);return {paid:f.total}})()});
-  return [
-   mk({id:"AD-2026-002",owner:"self",hospital:"Al Hayat Hospital",title:"Free orthopedic consultation day",department:"Orthopedics",category:"Free consultation day",badge:"Free",
-    description:"Meet our orthopedic consultants for a free assessment of knee, back, shoulder and joint pain. Bring any previous X-rays or reports. Limited slots — booking by phone is recommended.",
-    eventDate:addDays(t,6),startTime:"09:00",endTime:"14:00",location:"Outpatient clinics, 2nd floor",phone:"+962 2 700 0000",booking:true,plan:"premium",startDate:addDays(t,-3),views:412}),
-   mk({id:"AD-2026-001",owner:"self",hospital:"Al Hayat Hospital",title:"Community blood donation drive",department:"Blood bank",category:"Blood donation drive",badge:"Donate",
-    description:"Help us restock O-, A- and B- blood. Every donor receives a free blood-type and hemoglobin check. Please eat beforehand and bring a valid ID.",
-    eventDate:addDays(t,3),startTime:"10:00",endTime:"17:00",location:"Blood bank, ground floor",phone:"+962 2 700 0000",booking:false,plan:"featured",startDate:addDays(t,-5),views:268}),
-   mk({id:"AD-2026-104",owner:"other",hospital:"Irbid Specialty Hospital",title:"Heart health screening week",department:"Cardiology",category:"Health screening",badge:"50% off",
-    description:"ECG, blood pressure and cholesterol screening at half price for adults over 40. Results reviewed by a cardiologist on the same day.",
-    eventDate:addDays(t,9),startTime:"08:30",endTime:"13:30",location:"Cardiology center",phone:"+962 2 710 0000",booking:true,plan:"featured",startDate:addDays(t,-1),views:193}),
-   mk({id:"AD-2026-107",owner:"other",hospital:"Princess Basma Hospital",title:"Children's vision check",department:"Ophthalmology",category:"Free consultation day",badge:"Free",
-    description:"Free eye exams for school children aged 5–14. Parents must accompany children. Glasses prescriptions provided where needed.",
-    eventDate:addDays(t,4),startTime:"09:00",endTime:"12:00",location:"Eye clinic, building B",phone:"+962 2 720 0000",booking:false,plan:"basic",startDate:addDays(t,-2),views:121}),
-   mk({id:"AD-2026-109",owner:"other",hospital:"Irbid Specialty Hospital",title:"Breast cancer awareness talk",department:"Obstetrics & gynecology",category:"Awareness campaign",badge:"Open to all",
-    description:"A short talk on early detection and self-examination, followed by questions with our specialists. Free mammogram vouchers for eligible attendees.",
-    eventDate:addDays(t,11),startTime:"16:00",endTime:"18:00",location:"Main auditorium",phone:"+962 2 710 0000",booking:false,plan:"basic",startDate:t,views:64})
-  ];
+ let cache=[];
+ // Loads all ads (public pages) — GET /api/ads
+ async function fetchPublic(){
+  try{const res=await fetch("/api/ads");cache=res.ok?await res.json():[]}catch{cache=[]}
+  window.dispatchEvent(new Event("bloodlink:ads"));
+  return cache;
  }
- function load(){
-  try{const v=localStorage.getItem(KEY);if(v){const list=JSON.parse(v);if(Array.isArray(list))return list}}catch{}
-  const s=seed();save(s);return s;
+ // Loads the signed-in hospital's own ads — GET /api/hospital/ads
+ async function fetchMine(){
+  try{cache=await Api.get("/api/hospital/ads")}catch{cache=[]}
+  window.dispatchEvent(new Event("bloodlink:ads"));
+  return cache;
  }
- function save(list){try{localStorage.setItem(KEY,JSON.stringify(list))}catch{}}
+ function load(){return cache}
  function nextId(list){const y=new Date().getFullYear();const n=Math.max(0,...list.map(a=>Number(String(a.id).split("-").pop())||0))+1;return `AD-${y}-${String(n).padStart(3,"0")}`}
  function formatDate(v,opts={day:"2-digit",month:"short",year:"numeric"}){if(!v)return "—";const d=new Date(v+"T12:00:00");return Number.isNaN(d.getTime())?v:d.toLocaleDateString("en-GB",opts)}
  function formatTime(t){if(!t)return "";const [h,m]=t.split(":").map(Number);const d=new Date();d.setHours(h,m||0);return d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
@@ -92,5 +82,5 @@
    <div class="ad-card-foot"><span class="sponsored">Sponsored</span>${ad.booking?'<span class="booking-chip">Booking required</span>':""}<button class="ad-more" type="button" data-ad="${esc(ad.id||"")}"${preview?" tabindex=\"-1\"":""}>Details <span>→</span></button></div>
   </article>`;
  }
- window.BloodLinkAds={KEY,VAT_RATE,CURRENCY,PLANS,DEPARTMENTS,CATEGORIES,ICONS,today,addDays,endDate,fees,money,status,load,save,nextId,formatDate,formatTime,esc,cardHTML};
+ window.BloodLinkAds={KEY,VAT_RATE,CURRENCY,PLANS,DEPARTMENTS,CATEGORIES,ICONS,today,addDays,endDate,fees,money,status,load,fetchPublic,fetchMine,nextId,formatDate,formatTime,esc,cardHTML};
 })();

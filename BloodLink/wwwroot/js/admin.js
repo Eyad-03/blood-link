@@ -3,16 +3,12 @@
    - Account verification for hospitals / centers (inactive until activated)
    - Hall booking processing (shares storage with /Hall → "My Requests")
    - Incoming reports inbox
-   Demo persistence: localStorage. Replace read/save with API calls later.
+   Data comes from the server (Controllers/Api/AdminApiController.cs) — see loadAll().
    ===================================================================== */
 const $=id=>document.getElementById(id);
 const reduceMotion=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const KEYS={accounts:"bloodlinkAdminAccounts",reports:"bloodlinkAdminReports",log:"bloodlinkAdminLog",demoBookings:"bloodlinkAdminDemoBookings",hallRequests:"mubadartiHallRequests",users:"bloodlinkAdminUsers",siteUsers:"bloodlinkUsers"};
-const read=(k,f)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}};
-const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+Api.requireLogin(["Admin"]);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const ago=(d,h=0)=>new Date(Date.now()-(d*24+h)*3600e3).toISOString();
-const ahead=d=>new Date(Date.now()+d*864e5).toISOString().slice(0,10);
 const fmtDate=v=>{if(!v)return"—";const d=new Date(v.length===10?v+"T12:00:00":v);return isNaN(d)?esc(v):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})};
 function timeAgo(iso){const m=Math.round((Date.now()-new Date(iso))/6e4);if(m<1)return"just now";if(m<60)return`${m}m ago`;const h=Math.round(m/60);if(h<24)return`${h}h ago`;const d=Math.round(h/24);return d<30?`${d}d ago`:fmtDate(iso)}
 const hoursSince=iso=>(Date.now()-new Date(iso))/36e5;
@@ -36,89 +32,29 @@ const ICON={
  pay:'<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M7 15h4"/></svg>'
 };
 
-/* ---------------- Demo seed data ---------------- */
-const DOCS=(a,b,c)=>[{name:"Ministry of Health operating license",file:a,size:"1.8 MB",checked:false},{name:"Registration certificate",file:b,size:"920 KB",checked:false},{name:"Authorized representative ID",file:c,size:"640 KB",checked:false}];
-const seedAccounts=()=>[
- {id:"ORG-1042",name:"Al Rahma Specialty Hospital",type:"Hospital",city:"Irbid",license:"MOH-IRB-55821",email:"admin@alrahma-hospital.jo",phone:"+962 2 724 1100",contact:"Dr. Rami Odeh",address:"Al-Hashmi Street, Irbid",registeredAt:ago(0,5),status:"Pending",docs:DOCS("moh_license_alrahma.pdf","registration_alrahma.pdf","id_rami_odeh.jpg")},
- {id:"ORG-1041",name:"Northern Blood Donation Center",type:"Blood donation center",city:"Mafraq",license:"MOH-MAF-31207",email:"info@nbdc.jo",phone:"+962 2 623 4400",contact:"Lama Saeed",address:"Hospital Road, Mafraq",registeredAt:ago(1,3),status:"Pending",docs:DOCS("license_nbdc.pdf","certificate_nbdc.pdf","id_lama_saeed.pdf")},
- {id:"ORG-1039",name:"Amman Life Medical Center",type:"Medical center",city:"Amman",license:"MOH-AMM-90433",email:"contact@amman-life.jo",phone:"+962 6 551 9000",contact:"Khaled Nimri",address:"Mecca Street, Amman",registeredAt:ago(3,2),status:"Pending",docs:DOCS("moh_license_aml.pdf","registration_aml.pdf","id_khaled.jpg")},
- {id:"ORG-1037",name:"Zarqa Community Health Clinic",type:"Medical center",city:"Zarqa",license:"MOH-ZRQ-12090",email:"clinic@zarqahealth.jo",phone:"+962 5 398 2211",contact:"Nour Haddad",address:"New Zarqa, Zarqa",registeredAt:ago(4,6),status:"Pending",docs:[...DOCS("license_zchc.pdf","registration_zchc.pdf","")].slice(0,2)},
- {id:"ORG-1031",name:"Al Hayat Hospital",type:"Hospital",city:"Irbid",license:"MOH-IRB-40017",email:"bloodbank@alhayat.example",phone:"+962 2 700 0000",contact:"Hospital Admin",address:"University Street, Irbid",registeredAt:ago(22),status:"Active",decidedAt:ago(21),docs:DOCS("license.pdf","registration.pdf","id.pdf").map(d=>({...d,checked:true}))},
- {id:"ORG-1028",name:"Aqaba Red Crescent Center",type:"Blood donation center",city:"Aqaba",license:"MOH-AQB-77310",email:"aqaba@redcrescent.jo",phone:"+962 3 201 7788",contact:"Fadi Amro",address:"Aqaba city center",registeredAt:ago(30),status:"Active",decidedAt:ago(29),docs:DOCS("license.pdf","registration.pdf","id.pdf").map(d=>({...d,checked:true}))},
- {id:"ORG-1026",name:"Jerash Family Hospital",type:"Hospital",city:"Jerash",license:"MOH-JRS-20981",email:"info@jerashfamily.jo",phone:"+962 2 635 5500",contact:"Dr. Hiba Khatib",address:"Downtown, Jerash",registeredAt:ago(35),status:"Active",decidedAt:ago(33),docs:DOCS("license.pdf","registration.pdf","id.pdf").map(d=>({...d,checked:true}))},
- {id:"ORG-1024",name:"Quick Care Lab",type:"Medical center",city:"Amman",license:"—",email:"hello@quickcarelab.com",phone:"+962 7 9000 1234",contact:"Sami T.",address:"Abdoun, Amman",registeredAt:ago(40),status:"Rejected",decidedAt:ago(38),reason:"License number could not be verified with the Ministry of Health registry.",docs:DOCS("license_qcl.png","registration_qcl.pdf","id_sami.jpg")}
-];
-const seedBookings=()=>[
- {id:"HB-2026-418230",hallName:"Irbid Innovation Center",governorate:"Irbid",price:70,organization:"Irbid Youth Blood Drive",contactName:"Mais Qasem",email:"mais@iybd.org",phone:"0791112233",eventType:"Initiative",eventDate:ahead(9),attendees:60,eventTime:"Morning",description:"Community blood donation awareness day with a mobile donation unit.",documents:[{label:"Official venue booking request letter",fileName:"request_letter.pdf"},{label:"Event plan",fileName:"plan_iybd.pdf"},{label:"Proof of organization registration",fileName:"registration.pdf"}],status:"Pending approval",createdAt:ago(0,7)},
- {id:"HB-2026-417915",hallName:"University of Jordan Conference Hall",governorate:"Amman",price:180,organization:"Jordan Hematology Society",contactName:"Dr. Ola Faris",email:"ola@jhs.jo",phone:"0795554433",eventType:"Conference",eventDate:ahead(21),attendees:220,eventTime:"All day",description:"Annual conference on transfusion medicine and donor safety.",documents:[{label:"Official venue booking request letter",fileName:"jhs_letter.pdf"},{label:"Event plan",fileName:"agenda_2026.pdf"},{label:"Proof of organization registration",fileName:"jhs_registration.pdf"}],status:"Pending approval",createdAt:ago(2,4)},
- {id:"HB-2026-417702",hallName:"Zaha Cultural Center",governorate:"Amman",price:95,organization:"Lifeline Volunteers",contactName:"Yazan Kh.",email:"yazan@lifeline.org",phone:"0787771122",eventType:"Workshop",eventDate:ahead(5),attendees:45,eventTime:"Evening",description:"Training volunteers on donor registration and first aid.",documents:[{label:"Official venue booking request letter",fileName:"letter.pdf"},{label:"Event plan",fileName:"workshop_plan.docx"},{label:"Proof of organization registration",fileName:"cert.pdf"}],status:"Approved",createdAt:ago(5),adminNote:"Approved. Please complete payment to confirm."},
- {id:"HB-2026-417410",hallName:"Greater Irbid Municipality Hall",governorate:"Irbid",price:130,organization:"Red Drop Initiative",contactName:"Sara Nasser",email:"sara@reddrop.org",phone:"0779990011",eventType:"Initiative",eventDate:ahead(2),attendees:150,eventTime:"Morning",description:"Public donation campaign with partner hospitals.",documents:[{label:"Official venue booking request letter",fileName:"reddrop_letter.pdf"},{label:"Event plan",fileName:"campaign.pdf"},{label:"Proof of organization registration",fileName:"reddrop_reg.pdf"}],status:"Paid",createdAt:ago(9),paymentMethod:"Bank card"},
- {id:"HB-2026-416988",hallName:"Aqaba Grand Hall",governorate:"Aqaba",price:260,organization:"Southern Health Forum",contactName:"Ahmad Z.",email:"ahmad@shf.jo",phone:"0793334455",eventType:"Conference",eventDate:ago(6).slice(0,10),attendees:340,eventTime:"All day",description:"Regional forum on emergency blood supply.",documents:[{label:"Official venue booking request letter",fileName:"shf.pdf"},{label:"Event plan",fileName:"shf_plan.pdf"},{label:"Proof of organization registration",fileName:"shf_reg.pdf"}],status:"Completed",createdAt:ago(25),adminNote:"Booking completed. Thank you for hosting with BloodLink."},
- {id:"HB-2026-416550",hallName:"King Abdullah II Community Center",governorate:"Zarqa",price:55,organization:"Unnamed group",contactName:"—",email:"anon@mail.com",phone:"0700000000",eventType:"Training",eventDate:ahead(1),attendees:30,eventTime:"Evening",description:"No description provided.",documents:[{label:"Official venue booking request letter",fileName:"blank.pdf"}],status:"Rejected",createdAt:ago(12),adminNote:"Rejected: the organization registration document is missing."}
-];
-const seedReports=()=>[
- {id:"RP-3109",title:"Donor received wrong appointment time",category:"Donor complaint",priority:"high",from:"Hala Mahmoud",role:"Donor",email:"hala.mahmoud@example.com",createdAt:ago(0,2),status:"New",read:false,related:"Al Hayat Hospital",attachments:["sms_screenshot.png"],body:"I booked a donation for 10:00 but the confirmation SMS said 14:00. I arrived and waited for two hours.\n\nPlease check the reminder system so this doesn't happen to other donors."},
- {id:"RP-3108",title:"Hall listing shows wrong capacity",category:"Booking issue",priority:"medium",from:"Lifeline Volunteers",role:"Organization",email:"yazan@lifeline.org",createdAt:ago(0,9),status:"New",read:false,related:"Zaha Cultural Center",attachments:[],body:"The Zaha Cultural Center page says 120 people but the venue told us the limit is 90 for workshops."},
- {id:"RP-3105",title:"Suspicious hospital account",category:"Inappropriate content",priority:"high",from:"Omar Haddad",role:"Donor",email:"omar.haddad@example.com",createdAt:ago(1,4),status:"In review",read:true,related:"Quick Care Lab",attachments:["message_export.pdf"],body:"An account claiming to be a medical center messaged me asking for payment to 'reserve' a donation slot. Donations should be free."},
- {id:"RP-3101",title:"Map search not loading on mobile",category:"Technical issue",priority:"medium",from:"Zaid Fawzi",role:"Donor",email:"zaid.fawzi@example.com",createdAt:ago(2,1),status:"New",read:true,related:"Donor search page",attachments:["iphone_recording.mp4"],body:"On iPhone Safari the donor search map stays blank. It works on desktop."},
- {id:"RP-3097",title:"Request to correct blood type",category:"Data correction",priority:"low",from:"Yousef Saleh",role:"Donor",email:"yousef.saleh@example.com",createdAt:ago(4),status:"In review",read:true,related:"Donor profile",attachments:["lab_result.pdf"],body:"My profile shows A- but my latest lab result is B-. Attached the lab report."},
- {id:"RP-3090",title:"Inventory export missing notes",category:"Hospital issue",priority:"low",from:"Al Hayat Hospital",role:"Hospital",email:"bloodbank@alhayat.example",createdAt:ago(8),status:"Resolved",read:true,related:"Hospital portal",attachments:[],body:"The CSV export does not include the notes column.",response:"Fixed in the latest portal update — notes are now included in the export."}
-];
-const seedLog=()=>[
- {text:"Activated Jerash Family Hospital",icon:"check",color:"#13895f",at:ago(2,3)},
- {text:"Marked HB-2026-416988 as completed",icon:"star",color:"#6a4bc4",at:ago(3,1)},
- {text:"Rejected Quick Care Lab",icon:"x",color:"#d41d3d",at:ago(5)},
- {text:"Resolved report RP-3090",icon:"check",color:"#13895f",at:ago(6)}
-];
+/* ---------------- Data from the server ---------------- */
+let accounts=[];   // hospitals / centers      GET /api/admin/accounts
+let users=[];      // donors and recipients    GET /api/admin/users
+let bookings=[];   // hall booking requests    GET /api/admin/bookings
+let reports=[];    // "Report an issue" inbox  GET /api/admin/reports
+let activity=[];   // recent admin actions     GET /api/admin/activity
 
-const U=(id,name,city,bloodType,joined,last,donations,extra={})=>({id,name,email:`${name.toLowerCase().replace(/[^a-z]+/g,".")}@example.com`,phone:"079"+String(1000000+parseInt(id.slice(4))*137).slice(0,7),city,bloodType,joinedAt:ago(...joined),lastActive:ago(...last),donations,status:"Active",...extra});
-const seedUsers=()=>[
- U("USR-2031","Reem Tawalbeh","Irbid","A+",[0,6],[0,1],0),
- U("USR-2029","Hala Mahmoud","Amman","O+",[41],[0,2],4),
- U("USR-2027","Zaid Fawzi","Amman","B+",[18],[2,1],2),
- U("USR-2024","Noor Hamdan","Zarqa","AB+",[26],[1],7),
- U("USR-2022","Omar Haddad","Amman","O-",[55],[1,4],9),
- U("USR-2019","Yousef Saleh","Jerash","B-",[63],[4],3),
- U("USR-2016","Dina Abu Zeid","Aqaba","A-",[80],[6],5),
- U("USR-2012","Tariq Al-Sayed","Mafraq","O+",[97],[12],11),
- U("USR-2009","Layth Masri","Irbid","AB-",[120],[33],1),
- U("USR-2005","Basel Omari","Amman","B+",[140],[20],0,{status:"Suspended",suspendReason:"Repeated no-shows and fake appointment requests.",suspendedAt:ago(20)})
-];
-
-let accounts=read(KEYS.accounts,null)||seedAccounts();
-let reports=read(KEYS.reports,null)||seedReports();
-let activity=read(KEYS.log,null)||seedLog();
-if(!read(KEYS.demoBookings,null))save(KEYS.demoBookings,seedBookings());
-if(!read(KEYS.users,null))save(KEYS.users,seedUsers());
-save(KEYS.accounts,accounts);save(KEYS.reports,reports);save(KEYS.log,activity);
-
-/* Bookings: real requests come from /Hall storage; demo ones live in an admin-only key. */
-function allBookings(){
- const real=read(KEYS.hallRequests,[]).map(r=>({...r,_src:"real"}));
- const demo=read(KEYS.demoBookings,[]).map(r=>({...r,_src:"demo"}));
- return [...real,...demo].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+async function loadAll(){
+ try{
+  [accounts,users,bookings,reports,activity]=await Promise.all([
+   Api.get("/api/admin/accounts"),Api.get("/api/admin/users"),Api.get("/api/admin/bookings"),
+   Api.get("/api/admin/reports"),Api.get("/api/admin/activity")]);
+ }catch(err){toast(err.message)}
+ renderAll();
 }
-function updateBooking(id,patch){
- for(const key of [KEYS.hallRequests,KEYS.demoBookings]){
-  const rows=read(key,[]);const r=rows.find(x=>x.id===id);
-  if(r){Object.assign(r,patch,{updatedAt:new Date().toISOString()});(r.history=r.history||[]).push({status:r.status,at:r.updatedAt});save(key,rows);return r}
- }
-}
-/* Users: donors from the public site (KEYS.siteUsers → change the key if your signup page stores them elsewhere),
-   demo donors in an admin-only key, plus every hospital/center account from the verification queue. */
+function allBookings(){return [...bookings].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))}
+/* Users list = donors/recipients + every hospital/center account. */
 function allUsers(){
- const live=read(KEYS.siteUsers,[]).map(u=>({...u,id:String(u.id||u.email||u.name),name:u.name||u.fullName||"Unnamed user",email:u.email||"—",phone:u.phone||"—",city:u.city||"—",bloodType:u.bloodType||"—",joinedAt:u.joinedAt||u.createdAt||new Date(0).toISOString(),lastActive:u.lastActive||null,donations:Number(u.donations)||0,status:u.status==="Suspended"?"Suspended":"Active",role:"donor",_src:"real"}));
- const demo=read(KEYS.users,[]).map(u=>({...u,role:"donor",_src:"demo"}));
  const orgs=accounts.map(a=>({id:a.id,name:a.name,email:a.email,phone:a.phone,city:a.city,joinedAt:a.registeredAt,lastActive:null,status:a.status,role:a.type==="Hospital"?"hospital":"center",roleLabel:a.type,_src:"org"}));
- return [...live,...demo,...orgs];
+ return [...users,...orgs];
 }
-function updateUser(id,patch){
- for(const key of [KEYS.siteUsers,KEYS.users]){
-  const rows=read(key,[]);const r=rows.find(x=>String(x.id||x.email||x.name)===id);
-  if(r){Object.assign(r,patch);save(key,rows);return r}
- }
-}
-function logAction(text,icon,color){activity.unshift({text,icon,color,at:new Date().toISOString()});activity=activity.slice(0,30);save(KEYS.log,activity)}
+// The server writes the activity log; this only shows the line straight away.
+function logAction(text,icon,color){activity.unshift({text,icon,color,at:new Date().toISOString()});activity=activity.slice(0,30)}
 
 /* ---------------- Status helpers ---------------- */
 const roleLabel=u=>u.role==="donor"?"Donor":u.roleLabel;
@@ -233,13 +169,13 @@ function renderUsers(){
   <td>${fmtDate(u.joinedAt)}<small class="cell-subtext">${timeAgo(u.joinedAt)}${u._src==="real"?" · live":""}</small></td>
   <td>${u.lastActive?timeAgo(u.lastActive):"—"}</td>
   <td>${userPill(u)}</td>
-  <td><button class="record-action print" data-open="${u.role==="donor"?"user":"account"}" data-id="${esc(u.id)}">View</button></td></tr>`).join("")
+  <td><button class="record-action print" data-open="${u._src==="org"?"account":"user"}" data-id="${esc(u.id)}">View</button></td></tr>`).join("")
   ||`<tr><td colspan="8" class="empty-records">No users${q?" match your search":" here"}.</td></tr>`;
 }
 function userDrawer(u){
  const rel=reports.filter(r=>r.from===u.name),suspended=u.status==="Suspended";
  const body=`<header class="drawer-head"><svg class="hero-ecg ecg" data-cycles="4" viewBox="0 0 600 60" preserveAspectRatio="none"><path class="ecg-base"/><path class="ecg-trace"/></svg>
-   <div class="org-cell">${avatar(u.name,true)}<div><h2 id="drawerTitle">${esc(u.name)}</h2><p>Donor · ${esc(u.city)} · joined ${timeAgo(u.joinedAt)}</p></div></div>${userPill(u)}</header>
+   <div class="org-cell">${avatar(u.name,true)}<div><h2 id="drawerTitle">${esc(u.name)}</h2><p>${esc(roleLabel(u))} · ${esc(u.city)} · joined ${timeAgo(u.joinedAt)}</p></div></div>${userPill(u)}</header>
   <section class="drawer-section"><h3>Profile</h3><div class="info-grid">
    <div><span>User ID</span><b>${esc(u.id)}</b></div><div><span>Blood type</span><b>${esc(u.bloodType||"—")}</b></div>
    <div><span>Phone</span><b>${esc(u.phone)}</b></div><div><span>City</span><b>${esc(u.city)}</b></div>
@@ -320,24 +256,28 @@ function renderReports(){
   <div class="rd-meta"><div><span>FROM</span><b>${esc(r.from)}</b></div><div><span>ROLE</span><b>${esc(r.role)}</b></div><div><span>RELATED TO</span><b>${esc(r.related)}</b></div></div>
   ${r.attachments?.length?`<div class="rd-attach">${r.attachments.map(a=>`<span>📎 ${esc(a)}</span>`).join("")}</div>`:""}
   ${r.status==="Resolved"?`<div class="rd-response"><b>Resolution sent</b>${esc(r.response||"Marked resolved.")}</div><div class="rd-actions"><button class="ghost-button" data-ract="reopen">Reopen</button></div>`
-   :`
+   :`<textarea class="note-field" id="reportResponse" placeholder="Write a short resolution note for the reporter…"></textarea>
+    <div class="rd-actions">${r.status==="New"?`<button class="ghost-button" data-ract="review">Start review</button>`:""}<button class="primary-button success" data-ract="resolve">Resolve report <span>→</span></button>
     </div>`}`
   :`<div class="empty-detail"><span>${ICON.inbox}</span><b>Select a report</b><small>Pick a report from the list to read and act on it.</small></div>`;
 }
 function openReport(id){
  const r=reports.find(x=>x.id===id);if(!r)return;
- activeReport=id;if(!r.read){r.read=true;save(KEYS.reports,reports)}
+ activeReport=id;if(!r.read){r.read=true;Api.put(`/api/admin/reports/${encodeURIComponent(id)}`,{action:"read"}).catch(()=>{})}
  renderReports();const d=$("reportDetail");d.classList.remove("swap");void d.offsetWidth;d.classList.add("swap");
  if(window.innerWidth<980)d.scrollIntoView({behavior:reduceMotion?"auto":"smooth",block:"start"});
 }
 $("reportList").addEventListener("click",e=>{const b=e.target.closest("[data-report]");if(b)openReport(b.dataset.report)});
-$("reportDetail").addEventListener("click",e=>{
+$("reportDetail").addEventListener("click",async e=>{
  const b=e.target.closest("[data-ract]");if(!b)return;const r=reports.find(x=>x.id===activeReport);if(!r)return;
  const act=b.dataset.ract,note=$("reportResponse")?.value.trim();
- if(act==="review"){r.status="In review";logAction(`Started reviewing ${r.id}`,"clock","#bd7c12");toast(`${r.id} moved to In review.`)}
- if(act==="resolve"){if(!note){shakeField($("reportResponse"),"Add a short resolution note before resolving.");return}r.status="Resolved";r.response=note;logAction(`Resolved report ${r.id}`,"check","#13895f");bloodBurst("#13895f");toast(`${r.id} resolved.`)}
- if(act==="reopen"){r.status="In review";logAction(`Reopened report ${r.id}`,"clock","#bd7c12");toast(`${r.id} reopened.`)}
- save(KEYS.reports,reports);renderAll();
+ if(act==="resolve"&&!note){shakeField($("reportResponse"),"Add a short resolution note before resolving.");return}
+ // PUT /api/admin/reports/{id}  { action: review | resolve | reopen, note }
+ try{await Api.put(`/api/admin/reports/${encodeURIComponent(r.id)}`,{action:act,note})}catch(err){toast(err.message);return}
+ if(act==="review")toast(`${r.id} moved to In review.`);
+ if(act==="resolve"){bloodBurst("#13895f");toast(`${r.id} resolved.`)}
+ if(act==="reopen")toast(`${r.id} reopened.`);
+ await loadAll();
 });
 
 /* ---------------- Drawer ---------------- */
@@ -357,13 +297,15 @@ $("drawerClose").addEventListener("click",closeDrawer);$("drawerBackdrop").addEv
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){if($("docModal").classList.contains("open"))closeDoc();else if(drawerState)closeDrawer()}});
 function shakeField(f,msg){if(!f)return;f.classList.remove("shake");void f.offsetWidth;f.classList.add("shake");f.focus();toast(msg)}
 
-$("drawer").addEventListener("click",e=>{
+$("drawer").addEventListener("click",async e=>{
  if(!drawerState)return;
  const {kind,id}=drawerState;
  const chk=e.target.closest("[data-check]"),prev=e.target.closest("[data-preview]"),act=e.target.closest("[data-act]");
  if(prev){const item=kind==="account"?accounts.find(a=>a.id===id):allBookings().find(b=>b.id===id);const d=kind==="account"?item.docs[prev.dataset.preview]:item.documents[prev.dataset.preview];openDoc(kind==="account"?d.name:d.label,kind==="account"?d.file:d.fileName,item.name||item.organization);return}
  if(chk){
-  const a=accounts.find(x=>x.id===id),d=a.docs[chk.dataset.check];d.checked=!d.checked;save(KEYS.accounts,accounts);
+  const a=accounts.find(x=>x.id===id),d=a.docs[chk.dataset.check];
+  // PUT /api/admin/accounts/{id}/docs/{docId} — tick / untick one document
+  try{const res=await Api.put(`/api/admin/accounts/${encodeURIComponent(id)}/docs/${d.id}`);d.checked=res.checked}catch(err){toast(err.message);return}
   // Update in place so the drawer doesn't replay its entrance animation.
   chk.setAttribute("aria-pressed",String(d.checked));chk.closest(".doc-row").classList.toggle("checked",d.checked);
   const done=a.docs.filter(x=>x.checked).length,missing=3-a.docs.length;
@@ -374,23 +316,29 @@ $("drawer").addEventListener("click",e=>{
  if(!act)return;
  const note=$("decisionNote")?.value.trim()||"";
  const a=act.dataset.act;
+ // Check the form first, then send the action to the server.
+ let url="",done="";
  if(kind==="account"){
   const acc=accounts.find(x=>x.id===id);
-  if(a==="activate"){if(acc.docs.length<3||acc.docs.some(d=>!d.checked)){toast("Check all three documents first.");return}acc.status="Active";acc.decidedAt=new Date().toISOString();logAction(`Activated ${acc.name}`,"check","#13895f");bloodBurst("#13895f");toast(`${acc.name} is now active and can sign in.`)}
-  if(a==="reject-account"){if(!note){shakeField($("decisionNote"),"Write the rejection reason so the organization knows what to fix.");return}acc.status="Rejected";acc.reason=note;acc.decidedAt=new Date().toISOString();logAction(`Rejected ${acc.name}`,"x","#d41d3d");toast(`${acc.name} was rejected.`)}
-  if(a==="revoke"){if(!confirm(`Revoke activation for ${acc.name}? They will lose access until re-verified.`))return;acc.status="Pending";acc.docs.forEach(d=>d.checked=false);logAction(`Revoked activation of ${acc.name}`,"x","#d41d3d");toast(`${acc.name} moved back to pending.`)}
-  if(a==="reopen-account"){acc.status="Pending";delete acc.reason;logAction(`Reopened ${acc.name} for review`,"clock","#bd7c12");toast(`${acc.name} moved back to pending.`)}
-  save(KEYS.accounts,accounts);
+  if(a==="activate"&&(acc.docs.length<3||acc.docs.some(d=>!d.checked))){toast("Check all three documents first.");return}
+  if(a==="reject-account"&&!note){shakeField($("decisionNote"),"Write the rejection reason so the organization knows what to fix.");return}
+  if(a==="revoke"&&!confirm(`Revoke activation for ${acc.name}? They will lose access until re-verified.`))return;
+  url=`/api/admin/accounts/${encodeURIComponent(id)}`;
+  done={activate:`${acc.name} is now active and can sign in.`,"reject-account":`${acc.name} was rejected.`,revoke:`${acc.name} moved back to pending.`,"reopen-account":`${acc.name} moved back to pending.`}[a];
  }else if(kind==="user"){
   const u=allUsers().find(x=>x.id===id);
-  if(a==="suspend-user"){if(!note){shakeField($("decisionNote"),"Write the suspension reason so it is on record.");return}updateUser(id,{status:"Suspended",suspendReason:note,suspendedAt:new Date().toISOString()});logAction(`Suspended ${u.name}`,"x","#d41d3d");toast(`${u.name} was suspended.`)}
-  if(a==="reactivate-user"){updateUser(id,{status:"Active",suspendReason:undefined,suspendedAt:undefined});logAction(`Reactivated ${u.name}`,"check","#13895f");bloodBurst("#13895f");toast(`${u.name} is active again.`)}
+  if(a==="suspend-user"&&!note){shakeField($("decisionNote"),"Write the suspension reason so it is on record.");return}
+  url=`/api/admin/users/${encodeURIComponent(id)}`;
+  done=a==="suspend-user"?`${u.name} was suspended.`:`${u.name} is active again.`;
  }else{
-  if(a==="approve"){updateBooking(id,{status:"Approved",adminNote:note||"Your request has been approved. You can now pay to confirm."});logAction(`Approved booking ${id}`,"check","#13895f");bloodBurst("#13895f");toast(`${id} approved — payment is now unlocked for the requester.`)}
-  if(a==="reject-booking"){if(!note){shakeField($("decisionNote"),"Add a short reason for the requester.");return}updateBooking(id,{status:"Rejected",adminNote:note});logAction(`Rejected booking ${id}`,"x","#d41d3d");toast(`${id} rejected.`)}
-  if(a==="complete"){updateBooking(id,{status:"Completed",adminNote:note||"Your booking has been processed and completed.",completedAt:new Date().toISOString()});logAction(`Marked ${id} as completed`,"star","#6a4bc4");bloodBurst("#6a4bc4");toast(`${id} marked completed — the user will see it in My Requests.`)}
+  if(a==="reject-booking"&&!note){shakeField($("decisionNote"),"Add a short reason for the requester.");return}
+  url=`/api/admin/bookings/${encodeURIComponent(id)}`;
+  done={approve:`${id} approved — payment is now unlocked for the requester.`,"reject-booking":`${id} rejected.`,complete:`${id} marked completed — the user will see it in My Requests.`}[a];
  }
- renderAll();refreshDrawer();
+ try{await Api.put(url,{action:a,note})}catch(err){toast(err.message);return}
+ if(["activate","reactivate-user","approve","complete"].includes(a))bloodBurst(a==="complete"?"#6a4bc4":"#13895f");
+ toast(done);
+ await loadAll();refreshDrawer();
 });
 
 /* ---------------- Document preview ---------------- */
@@ -455,12 +403,7 @@ $("accountSearch").addEventListener("input",renderAccounts);$("userSearch").addE
 $("menuButton").addEventListener("click",()=>{const o=$("sidebar").classList.toggle("open");$("menuButton").setAttribute("aria-expanded",String(o))});
 document.addEventListener("click",e=>{if(window.innerWidth<=760&&$("sidebar").classList.contains("open")&&!$("sidebar").contains(e.target)&&!$("menuButton").contains(e.target)){$("sidebar").classList.remove("open");$("menuButton").setAttribute("aria-expanded","false")}});
 $("notificationButton").addEventListener("click",()=>{const c=counts();toast(`${c.pendingAcc.length} account${c.pendingAcc.length===1?"":"s"} to verify, ${c.todoBookings.length} booking${c.todoBookings.length===1?"":"s"} to process, ${c.openReports.filter(r=>!r.read).length} unread report${c.openReports.filter(r=>!r.read).length===1?"":"s"}.`)});
-const HOME_URL="/"; // غيّر هذا السطر إذا كان اسم صفحة الـ home مختلفاً (مثلاً /)
-$("logoutButton").addEventListener("click",()=>{window.location.href=HOME_URL});
-
-// New booking submitted from /Hall in another tab → refresh live.
-window.addEventListener("storage",e=>{if(e.key===KEYS.siteUsers){renderUsers();if(drawerState?.kind==="user")refreshDrawer()}
- if(e.key===KEYS.hallRequests){renderAll();if(drawerState?.kind==="booking")refreshDrawer();toast("Booking requests updated.")}});
+// "Sign out" is handled by api.js (the button has data-logout).
 
 function renderAll(){renderOverview();renderUsers();renderAccounts();renderBookings();renderReports()}
 
@@ -502,6 +445,7 @@ function bloodBurst(color){
 drawEcg();tickClock();setInterval(tickClock,15000);
 $("todayDate").textContent=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
 renderAll();initCharts();
+loadAll();   // get the real data from the server
 const startSection=location.hash.slice(1);if(LABELS[startSection]&&startSection!=="overview")navigate(startSection);
 (function(){
  const loader=$("pageLoader");if(!loader)return;

@@ -4,12 +4,13 @@ namespace BloodLink.Models.Entities
 {
     // A donation documented by the hospital (Hospital → Donation records).
     // Also feeds the donor's donation count / certificate on the profile page.
+    // OrganizationId is empty when the donor added the donation himself on the profile page.
     public class DonationRecord
     {
         public int Id { get; set; }
 
-        public int OrganizationId { get; set; }
-        public Organization Organization { get; set; } = null!;
+        public int? OrganizationId { get; set; }
+        public Organization? Organization { get; set; }
 
         // Linked donor account, if the donor is registered.
         public int? DonorId { get; set; }

@@ -135,19 +135,19 @@
               <legend>Account type <span class="required-mark">*</span></legend>
               <div class="role-options" id="roleOptions">
                 <span class="role-indicator" aria-hidden="true"></span>
-                <label class="role-option selected" for="roleDonor" onclick="navigateToDonor()">
+                <label class="role-option selected" for="roleDonor">
                   <input type="radio" id="roleDonor" name="role" value="donor" checked required>
                   <span class="role-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s-8-4.8-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6.2-8 11-8 11Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v7m-3.5-3.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
                   <span class="role-copy"><strong>Blood Donor</strong><small>I want to donate blood</small></span>
                   <span class="role-radio"></span>
                 </label>
-                <label class="role-option" for="roleRequester" onclick="navigateToNeed()">
+                <label class="role-option" for="roleRequester">
                   <input type="radio" id="roleRequester" name="role" value="requester">
                   <span class="role-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5c-2.8 4.1-6.5 7.7-6.5 11.4a6.5 6.5 0 0 0 13 0c0-3.7-3.7-7.3-6.5-11.4Z" stroke="currentColor" stroke-width="1.8"/><path d="M9 14.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
                   <span class="role-copy"><strong>Need Blood</strong><small>I'm looking for a donor</small></span>
                   <span class="role-radio"></span>
                 </label>
-                <label class="role-option" for="roleHospital" onclick="navigateToHospital()">
+                <label class="role-option" for="roleHospital">
                   <input type="radio" id="roleHospital" name="role" value="hospital">
                   <span class="role-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M9 7h6m-3-3v6M8 13h2m4 0h2M8 17h2m4 0h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                   <span class="role-copy"><strong>Hospital / Center</strong><small>We coordinate donations</small></span>
@@ -321,6 +321,7 @@
     </section>
   </main>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/js/api.js"></script>
   <script src="/js/register.js"></script>
 </body>
 </html>

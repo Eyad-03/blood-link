@@ -1,25 +1,20 @@
 const $ = id => document.getElementById(id);
-const STORAGE_KEY = "bloodlinkRecipientRequests";
+Api.requireLogin(["Recipient"]);
 
-const demoRequests = [
-    { id: "BR-2026-0184", donorName: "Lina Khalil", donorInitials: "LK", bloodType: "O−", location: "University Street, Irbid", distance: "2.4 km away", sentAt: "Today, 10:42 AM", dateValue: "2026-10-10T10:42:00", status: "Pending", message: "Urgently need O− blood for a family member.", donorPhone: "", donorEmail: "lina@example.com" },
-    { id: "BR-2026-0198", donorName: "Omar Haddad", donorInitials: "OH", bloodType: "A+", location: "Downtown, Irbid", distance: "3.1 km away", sentAt: "Yesterday, 4:15 PM", dateValue: "2026-10-09T16:15:00", status: "Accepted", message: "Thank you for offering to help. Please coordinate with the hospital.", donorPhone: "+962 7 9000 1234", donorEmail: "omar@example.com" },
-];
+/* Requests come from the server: GET /api/requests/sent (Controllers/Api/RequestsController.cs) */
+let requests = [];
 let activeFilter = "All";
 let selectedRequestId = null;
 let contactRequestId = null;
 BloodChat.init({ me: "recipient" });
 
 function escapeHTML(value) { return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
-function readRequests() {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored !== null) return JSON.parse(stored);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(demoRequests));
-        return [...demoRequests];
-    } catch { return [...demoRequests]; }
+function readRequests() { return requests; }
+async function loadRequests() {
+    try { requests = await Api.get("/api/requests/sent"); }
+    catch (err) { showToast(err.message); }
+    renderRequests();
 }
-function saveRequests(rows) { localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }
 function statusClass(status) { return ({ Pending: "pending", Accepted: "accepted", Declined: "declined", Completed: "completed" })[status] || "pending"; }
 function statusLabel(status) { return ({ Pending: "Waiting for response", Accepted: "Request accepted", Declined: "Request declined", Completed: "Donation completed" })[status] || status; }
 function formatBloodType(type) { return escapeHTML(type); }
@@ -121,16 +116,19 @@ $("requestList").addEventListener("click", e => {
     if (contact) { openContact(contact.dataset.contact); }
     if (chat) openChat(chat.dataset.chat);
 });
-$("completeBtn").addEventListener("click", () => {
-    const rows = readRequests(), r = rows.find(x => x.id === selectedRequestId); if (!r || r.status !== "Accepted") return;
-    r.status = "Completed"; r.completedAt = new Date().toISOString(); saveRequests(rows); BloodChat.addSystem(r.id, "Donation marked as completed. This conversation is now read-only."); closeModal("detailsModal"); renderRequests(); showToast("Request marked as completed.");
+$("completeBtn").addEventListener("click", async () => {
+    const r = readRequests().find(x => x.id === selectedRequestId); if (!r || r.status !== "Accepted") return;
+    try { await Api.put(`/api/requests/${encodeURIComponent(r.id)}/status`, { status: "Completed" }); }
+    catch (err) { showToast(err.message); return; }
+    closeModal("detailsModal"); await loadRequests(); showToast("Request marked as completed.");
 });
 document.querySelectorAll("[data-close]").forEach(btn => btn.addEventListener("click", () => closeModal(btn.dataset.close)));
 $("detailsModal").addEventListener("click", e => { if (e.target === $("detailsModal")) closeModal("detailsModal"); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach(m => closeModal(m.id)); });
-$("findDonorsBtn")?.addEventListener("click", e => { e.preventDefault(); showToast("Connect this button to your /Donor/Search page."); });
+$("findDonorsBtn")?.addEventListener("click", e => { e.preventDefault(); window.location.href = "/Donor/Search"; });
 $("emergencyInfo").addEventListener("click", e => { e.preventDefault(); showToast("For emergencies, contact your hospital or local emergency services immediately."); });
 renderRequests();
+loadRequests();
 
 
 /* Motion polish: sticky-glass header, accessible reveal, and keyboard-friendly modals */

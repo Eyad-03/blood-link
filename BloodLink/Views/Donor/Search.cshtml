@@ -46,7 +46,7 @@
           </div>
           <div class="dropdown-divider"></div>
           <a href="/Account/Profile" class="dropdown-item"><span class="dropdown-icon">♙</span><span><strong>My profile</strong><small>View your personal details</small></span><span class="dropdown-arrow">›</span></a>
-          <a href="/" class="dropdown-item"><span class="dropdown-icon">⌕</span><span><strong>Sign out</strong><small>Search nearby blood donors</small></span><span class="dropdown-arrow">›</span></a>
+          <a href="/" class="dropdown-item" data-logout><span class="dropdown-icon">⌕</span><span><strong>Sign out</strong><small>Search nearby blood donors</small></span><span class="dropdown-arrow">›</span></a>
         </div>
       </div>
     </nav>
@@ -190,6 +190,7 @@
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
 <script src="https://unpkg.com/leaflet@@1.9.4/dist/leaflet.js"></script>
+<script src="/js/api.js"></script>
 <script src="/js/donorSearch.js"></script>
 <script>
 (() => {

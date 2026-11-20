@@ -49,6 +49,11 @@ namespace BloodLink.Models.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LastActiveAt { get; set; }
 
+        // Filled by the admin when the account is suspended (Admin → Users).
+        [MaxLength(500)]
+        public string? SuspendReason { get; set; }
+        public DateTime? SuspendedAt { get; set; }
+
         // Set for hospital staff accounts.
         public int? OrganizationId { get; set; }
         public Organization? Organization { get; set; }

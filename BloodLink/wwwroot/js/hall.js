@@ -1,17 +1,12 @@
-const halls = [
- {id:1,name:"University of Jordan Conference Hall",governorate:"Amman",entity:"University",events:["Conference","Workshop","Training"],capacity:250,price:180,rating:4.9,tag:"Popular choice",tagClass:"",location:"Jubeiha, Amman",image:"https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=900&q=80",description:"A modern venue equipped for conferences, seminars, and academic events.",features:["Presentation screen","Sound system","Parking"]},
- {id:2,name:"Zaha Cultural Center",governorate:"Amman",entity:"Community center",events:["Initiative","Workshop","Training"],capacity:120,price:95,rating:4.8,tag:"Great for initiatives",tagClass:"green",location:"Khalda, Amman",image:"https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80",description:"A flexible space for community activities, training, and workshops.",features:["Wi-Fi","Equipment","Parking"]},
- {id:3,name:"Aqaba Grand Hall",governorate:"Aqaba",entity:"Private institution",events:["Conference","Initiative"],capacity:400,price:260,rating:4.7,tag:"Large capacity",tagClass:"green",location:"Aqaba city center",image:"https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=900&q=80",description:"A spacious hall with lighting and facilities for large events.",features:["Stage","Professional audio","Parking"]},
- {id:4,name:"Irbid Innovation Center",governorate:"Irbid",entity:"Government institution",events:["Initiative","Workshop","Training"],capacity:90,price:70,rating:4.8,tag:"Budget friendly",tagClass:"green",location:"University Street, Irbid",image:"https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=900&q=80",description:"A practical venue for youth initiatives and small community gatherings.",features:["Wi-Fi","Whiteboard","Parking"]},
- {id:5,name:"Greater Irbid Municipality Hall",governorate:"Irbid",entity:"Government institution",events:["Conference","Initiative"],capacity:180,price:130,rating:4.6,tag:"Available to book",tagClass:"green",location:"Downtown, Irbid",image:"https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=900&q=80",description:"A multi-purpose hall for public meetings and local events.",features:["Presentation screen","Sound system","Seating"]},
- {id:6,name:"King Abdullah II Community Center",governorate:"Zarqa",entity:"Community center",events:["Workshop","Training","Initiative"],capacity:70,price:55,rating:4.5,tag:"Affordable",tagClass:"amber",location:"New Zarqa, Zarqa",image:"https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=900&q=80",description:"A comfortable venue for short courses, workshops, and volunteer activities.",features:["Wi-Fi","Presentation setup","Seating"]}
-];
+/* Halls and booking requests come from the server (Controllers/Api/HallsController.cs) */
+let halls = [];        // GET /api/halls
+let myRequests = [];   // GET /api/halls/bookings/mine (only when signed in)
 const $ = id => document.getElementById(id);
-const STORAGE_KEY = "mubadartiHallRequests";
 let selectedPaymentRequest = null;
 
-function readRequests(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch{return []}}
-function saveRequests(rows){localStorage.setItem(STORAGE_KEY,JSON.stringify(rows))}
+function readRequests(){return myRequests}
+async function loadHalls(){try{halls=await Api.get("/api/halls")}catch(err){showToast(err.message)}renderHalls()}
+async function loadRequests(){if(!Api.isLoggedIn())return;try{myRequests=await Api.get("/api/halls/bookings/mine")}catch{}renderRequests()}
 function money(value){return `${value} JOD`}
 function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function showToast(message){$("toast").textContent=message;$("toast").classList.add("show");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>$("toast").classList.remove("show"),3200)}
@@ -31,7 +26,7 @@ function renderHalls(){
 }
 function openModal(id){$(id).classList.remove("hidden");document.body.style.overflow="hidden"}
 function closeModal(id){$(id).classList.add("hidden");if(document.querySelectorAll(".modal-backdrop:not(.hidden)").length===0)document.body.style.overflow=""}
-function startBooking(id){const hall=halls.find(h=>h.id===Number(id));if(!hall)return;$("selectedHallId").value=hall.id;$("selectedHallName").textContent=`${hall.name} · ${hall.governorate} · ${money(hall.price)}`;const minDate=new Date();minDate.setDate(minDate.getDate()+1);$("bookingForm").elements.eventDate.min=minDate.toISOString().slice(0,10);openModal("bookingModal")}
+function startBooking(id){if(!Api.isLoggedIn()){showToast("Please sign in to book a venue.");setTimeout(()=>Api.requireLogin(),900);return}const hall=halls.find(h=>h.id===Number(id));if(!hall)return;$("selectedHallId").value=hall.id;$("selectedHallName").textContent=`${hall.name} · ${hall.governorate} · ${money(hall.price)}`;const minDate=new Date();minDate.setDate(minDate.getDate()+1);$("bookingForm").elements.eventDate.min=minDate.toISOString().slice(0,10);openModal("bookingModal")}
 function statusInfo(status){if(status==="Pending approval")return ["Pending approval",""];if(status==="Approved")return ["Approved","approved"];if(status==="Paid")return ["Paid · Booking confirmed","paid"];return ["Rejected","rejected"]}
 function renderRequests(){
  const rows=readRequests();$("requestCount").textContent=rows.length;
@@ -53,18 +48,22 @@ document.querySelectorAll("[data-close]").forEach(btn=>btn.addEventListener("cli
 document.querySelectorAll(".modal-backdrop").forEach(backdrop=>backdrop.addEventListener("click",e=>{if(e.target===backdrop)closeModal(backdrop.id)}));
 document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach(m=>closeModal(m.id))});
 document.querySelectorAll('input[type="file"]').forEach(input=>input.addEventListener("change",()=>{const name=input.parentElement.querySelector(".file-name");if(name)name.textContent=input.files[0]?.name||"Choose a file"}));
-$("bookingForm").addEventListener("submit",e=>{
+$("bookingForm").addEventListener("submit",async e=>{
  e.preventDefault();const form=e.currentTarget;if(!form.reportValidity())return;
  const fd=new FormData(form);const fileInputs=[...form.querySelectorAll('input[type="file"]')];
  for(const input of fileInputs){const file=input.files[0];if(!file){showToast("Please attach all required documents.");return}if(file.size>10*1024*1024){showToast(`File ${file.name} is larger than 10MB.`);return}}
- const hall=halls.find(h=>h.id===Number($("selectedHallId").value));const rows=readRequests();
- const request={id:`HB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,hallId:hall.id,hallName:hall.name,governorate:hall.governorate,price:hall.price,organization:fd.get("organization"),contactName:fd.get("contactName"),email:fd.get("email"),phone:fd.get("phone"),eventType:fd.get("eventType"),eventDate:fd.get("eventDate"),attendees:Number(fd.get("attendees")),eventTime:fd.get("eventTime"),description:fd.get("description"),documents:fileInputs.map(i=>({label:i.parentElement.querySelector("b").textContent,fileName:i.files[0].name})),status:"Pending approval",createdAt:new Date().toISOString()};
- rows.push(request);saveRequests(rows);form.reset();document.querySelectorAll(".file-name").forEach(el=>el.textContent="Choose a file");closeModal("bookingModal");renderRequests();showToast("Your request has been submitted. Your documents will be reviewed before payment is enabled.");openModal("requestsModal");
+ const hall=halls.find(h=>h.id===Number($("selectedHallId").value));
+ // POST /api/halls/bookings — only the document file names are sent in this version.
+ const request={hallId:hall.id,organization:fd.get("organization"),contactName:fd.get("contactName"),email:fd.get("email"),phone:fd.get("phone"),eventType:fd.get("eventType"),eventDate:fd.get("eventDate"),attendees:Number(fd.get("attendees")),eventTime:fd.get("eventTime"),description:fd.get("description"),documents:fileInputs.map(i=>({label:i.parentElement.querySelector("b").textContent,fileName:i.files[0].name}))};
+ try{await Api.post("/api/halls/bookings",request)}catch(err){showToast(err.message);return}
+ await loadRequests();form.reset();document.querySelectorAll(".file-name").forEach(el=>el.textContent="Choose a file");closeModal("bookingModal");renderRequests();showToast("Your request has been submitted. Your documents will be reviewed before payment is enabled.");openModal("requestsModal");
 });
-$("myBookingsBtn").addEventListener("click",()=>{renderRequests();openModal("requestsModal")});
+$("myBookingsBtn").addEventListener("click",async()=>{if(!Api.isLoggedIn()){showToast("Please sign in to see your requests.");return}await loadRequests();openModal("requestsModal")});
 $("requestsList").addEventListener("click",e=>{const pay=e.target.closest("[data-pay]");if(pay)openPayment(pay.dataset.pay)});
-$("confirmPayment").addEventListener("click",()=>{
- if(!selectedPaymentRequest)return;const rows=readRequests(),r=rows.find(x=>x.id===selectedPaymentRequest);if(!r||r.status!=="Approved")return;
- r.status="Paid";r.paymentMethod=document.querySelector('input[name="paymentMethod"]:checked')?.value||"Bank card";r.paidAt=new Date().toISOString();saveRequests(rows);closeModal("paymentModal");renderRequests();showToast("Demo payment recorded and booking confirmed.");
+$("confirmPayment").addEventListener("click",async()=>{
+ if(!selectedPaymentRequest)return;const r=readRequests().find(x=>x.id===selectedPaymentRequest);if(!r||r.status!=="Approved")return;
+ const method=document.querySelector('input[name="paymentMethod"]:checked')?.value||"Bank card";
+ try{await Api.post(`/api/halls/bookings/${encodeURIComponent(r.id)}/pay`,{method})}catch(err){showToast(err.message);return}
+ closeModal("paymentModal");await loadRequests();showToast("Payment recorded and booking confirmed.");
 });
-renderHalls();renderRequests();
+renderHalls();renderRequests();loadHalls();loadRequests();

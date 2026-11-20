@@ -3,24 +3,11 @@
 
   /* ---------- helpers ---------- */
   var $ = function (id) { return document.getElementById(id); };
-  var KEYS = {
-    profile: 'bloodlink_profile',
-    donor: 'bloodlink_donor'
-  };
+  Api.requireLogin();
   var ML_PER_DONATION = 450;
   var BAG_GOAL = 10; // donations needed to fill the bag
   var CERT_GOAL = 5; // donations needed to earn the emailed certificate
-  var CERT_ENDPOINT = '/api/send-certificate'; // backend route that emails the certificate
-
-  function load(key, fallback) {
-    try {
-      var raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch (e) { return fallback; }
-  }
-  function save(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignore */ }
-  }
+  var CERT_ENDPOINT = '/api/send-certificate'; // backend route that "emails" the certificate
   function esc(str) {
     return String(str).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -31,16 +18,19 @@
     return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
-  /* ---------- state ---------- */
-  var profile = load(KEYS.profile, {
-    name: 'Eyad Mansour',
-    email: 'eyad@example.com',
-    phone: '',
-    location: 'Irbid, Jordan'
-  });
+  /* ---------- state (filled from GET /api/profile — Controllers/Api/ProfileController.cs) ---------- */
+  var profile = { name: '', email: '', phone: '', location: '' };
+  var donor = { available: false, donations: [], certificate: null };
 
-  var donor = load(KEYS.donor, { available: false, donations: [] });
-  if (!Array.isArray(donor.donations)) donor.donations = [];
+  // Takes the JSON from the server and redraws the page.
+  function applyServerData(data, animate) {
+    profile = { name: data.name, email: data.email, phone: data.phone, location: data.location, bloodType: data.bloodType };
+    donor = { available: data.available, donations: data.donations || [], certificate: data.certificate };
+    renderProfile();
+    renderDonor(!!animate);
+    // Tell the hero section at the bottom of this file.
+    window.dispatchEvent(new CustomEvent('profile:loaded', { detail: { profile: profile, donor: donor } }));
+  }
 
   /* ---------- profile ---------- */
   function initials(name) {
@@ -97,15 +87,15 @@
 
   $('profileForm').addEventListener('submit', function (e) {
     e.preventDefault();
-    profile = {
+    var data = {
       name: $('editName').value.trim(),
       email: $('editEmail').value.trim(),
       phone: $('editPhone').value.trim(),
       location: $('editLocation').value.trim()
     };
-    save(KEYS.profile, profile);
-    renderProfile();
-    closeModal('profileBackdrop');
+    Api.put('/api/profile', data)
+      .then(function (saved) { applyServerData(saved); closeModal('profileBackdrop'); })
+      .catch(function (err) { alert(err.message); });
   });
 
 /* ---------- donations: counter, bag, availability ---------- */
@@ -119,7 +109,7 @@
     el.textContent = text;
     clearTimeout(msgTimer);
     msgTimer = setTimeout(function () {
-      el.textContent = 'Each donation is counted as ' + ML_PER_DONATION + ' ml. Demo only: stored in this browser.';
+      el.textContent = 'Each donation is counted as ' + ML_PER_DONATION + ' ml.';
     }, 4000);
   }
 
@@ -175,9 +165,6 @@
   var certError = false;  // the last email attempt failed
   var certImage = null;   // JPEG data URL of the current certificate
 
-  function newCertId() {
-    return 'BL-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
-  }
 
   function ensureFonts() {
     if (!document.fonts || !document.fonts.load) return Promise.resolve();
@@ -344,23 +331,10 @@
     if (!cert || certBusy) return Promise.resolve();
     certBusy = true; certError = false; renderCert();
     return withCertificate(function () {
-      return fetch(CERT_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: profile.email,
-          name: cert.name,
-          donations: cert.donations,
-          certificateId: cert.id,
-          issuedAt: cert.issuedAt,
-          image: certImage
-        })
-      });
+      return Api.post(CERT_ENDPOINT, { certificateId: cert.id });
     }).then(function (res) {
-      if (!res || !res.ok) throw new Error('send failed');
-      cert.sentAt = new Date().toISOString();
-      cert.sentTo = profile.email;
-      save(KEYS.donor, donor);
+      cert.sentAt = res.sentAt;
+      cert.sentTo = res.sentTo;
     }).catch(function () {
       certError = true;
     }).then(function () {
@@ -369,19 +343,14 @@
     });
   }
 
+  // POST /api/profile/certificate — the server creates the certificate (needs 5 donations).
   function issueCertificate() {
     if (donor.certificate) return Promise.resolve();
-    donor.certificate = {
-      id: newCertId(),
-      issuedAt: new Date().toISOString(),
-      donations: donor.donations.length,
-      name: profile.name,
-      sentAt: null,
-      sentTo: null
-    };
-    save(KEYS.donor, donor);
-    renderCert();
-    return showCertificate().then(sendCertificate);
+    return Api.post('/api/profile/certificate').then(function (data) {
+      donor.certificate = data.certificate;
+      renderCert();
+      return showCertificate().then(sendCertificate);
+    }).catch(function (err) { say(err.message); });
   }
 
   $('certOpen').addEventListener('click', showCertificate);
@@ -398,37 +367,44 @@
     });
   });
 
+  // PUT /api/profile/availability
   $('availabilityToggle').addEventListener('click', function () {
-    donor.available = !donor.available;
-    save(KEYS.donor, donor);
-    renderDonor(false);
-    say(donor.available ? 'You are now available to donate.' : 'You are now unavailable. Blood flow stopped.');
+    var available = !donor.available;
+    Api.put('/api/profile/availability', { available: available }).then(function () {
+      donor.available = available;
+      renderDonor(false);
+      window.dispatchEvent(new CustomEvent('profile:loaded', { detail: { profile: profile, donor: donor } }));
+      say(available ? 'You are now available to donate.' : 'You are now unavailable. Blood flow stopped.');
+    }).catch(function (err) { say(err.message); });
   });
 
+  // POST /api/profile/donations
   $('addDonation').addEventListener('click', function () {
     if (!donor.available) { say('Switch your status to “Available” first.'); return; }
-    donor.donations.push(new Date().toISOString());
-    save(KEYS.donor, donor);
-    renderDonor(true);
-    if (!donor.certificate && donor.donations.length >= CERT_GOAL) {
-      say('Donation recorded. You earned a certificate!');
-      issueCertificate();
-    } else {
-      say('Donation recorded. Thank you!');
-    }
+    Api.post('/api/profile/donations').then(function (data) {
+      applyServerData(data, true);
+      if (!donor.certificate && donor.donations.length >= CERT_GOAL) {
+        say('Donation recorded. You earned a certificate!');
+        issueCertificate();
+      } else {
+        say('Donation recorded. Thank you!');
+      }
+    }).catch(function (err) { say(err.message); });
   });
 
+  // DELETE /api/profile/donations/last (only donations you added yourself)
   $('undoDonation').addEventListener('click', function () {
     if (!donor.donations.length) return;
-    donor.donations.pop();
-    save(KEYS.donor, donor);
-    renderDonor(true);
-    say('Last donation removed.');
+    Api.del('/api/profile/donations/last').then(function (data) {
+      applyServerData(data, true);
+      say('Last donation removed.');
+    }).catch(function (err) { say(err.message); });
   });
 
   /* ---------- init ---------- */
   renderProfile();
   renderDonor(false);
+  Api.get('/api/profile').then(function (data) { applyServerData(data); }).catch(function () { });
 })();
 
 
@@ -439,12 +415,9 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const fineHover = matchMedia('(hover: hover) and (pointer: fine)').matches;
  
-  /* --- data (same localStorage keys as the profile page) --- */
-  const load = (k, f) => { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : f; } catch (e) { return f; } };
-  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-  const profile = load('bloodlink_profile', {}) || {};
-  const donor = Object.assign({ available: false, donations: [] }, load('bloodlink_donor', {}) || {});
-  if (!Array.isArray(donor.donations)) donor.donations = [];
+  /* --- data: sent by the code above when it arrives from the server --- */
+  let profile = {};
+  let donor = { available: false, donations: [] };
  
   /* --- count-up number --- */
   function countUp(el, to, dur = 900) {
@@ -466,15 +439,20 @@
     $('heroStatus').setAttribute('aria-pressed', String(on));
     $('heroStatusText').textContent = on ? 'Available to donate' : 'Unavailable';
   }
-  $('heroBlood').textContent = profile.bloodType || '—';
-  countUp($('heroDonations'), donor.donations.length);
-  renderStatus();
- 
-  // click the status chip to toggle availability
-  $('heroStatus').addEventListener('click', () => {
-    donor.available = !donor.available;
-    save('bloodlink_donor', donor);
+  let shownCount = -1;
+  window.addEventListener('profile:loaded', (e) => {
+    profile = e.detail.profile;
+    donor = e.detail.donor;
+    $('heroBlood').textContent = profile.bloodType || '—';
+    if (shownCount !== donor.donations.length) { shownCount = donor.donations.length; countUp($('heroDonations'), shownCount); }
     renderStatus();
+  });
+  $('heroBlood').textContent = '—';
+  renderStatus();
+
+  // click the status chip to toggle availability (same as the switch in the donor card)
+  $('heroStatus').addEventListener('click', () => {
+    $('availabilityToggle').click();
   });
  
   /* --- 3D tilt on the heart visual --- */

@@ -39,7 +39,7 @@
         <div class="dropdown-divider"></div>
         <a href="/Account/Profile" class="dropdown-item"><span class="dropdown-icon">♙</span><span><strong>My profile</strong><small>View your personal details</small></span><span class="dropdown-arrow">›</span></a>
         <a href="/Donor/Requests" class="dropdown-item"><span class="dropdown-icon">♡</span><span><strong>My Requests</strong><small>View my blood requests</small></span><span class="dropdown-arrow">›</span></a>
-        <a href="/" class="dropdown-item"><span class="dropdown-icon">⌕</span><span><strong>Sign out</strong><small>Search nearby blood donors</small></span><span class="dropdown-arrow">›</span></a>
+        <a href="/" class="dropdown-item" data-logout><span class="dropdown-icon">⌕</span><span><strong>Sign out</strong><small>Search nearby blood donors</small></span><span class="dropdown-arrow">›</span></a>
       </div>
     </div>
   </nav>
@@ -64,7 +64,7 @@
     <form id="donorForm" class="form-card">
       <div class="section-heading"><div><label>STEP 01 · DONOR DETAILS</label><h2>Donation availability</h2><p>Review your details before submitting.</p></div><span class="step-badge">01 / 02</span></div>
       <div class="fields">
-        <label>Full name <span class="required"></span><input id="fullName" name="fullName" required maxlength="80" placeholder="Enter your full name" value="Eyad Mansour"></label>
+        <label>Full name <span class="required"></span><input id="fullName" name="fullName" required maxlength="80" placeholder="Enter your full name"></label>
         <label>Blood type <span class="required"></span><select id="bloodType" name="bloodType" required><option value="">Select your blood type</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select></label>
         <label>Phone number <span class="required"></span><input id="phone" name="phone" type="tel" required placeholder="+962 7X XXX XXXX"></label>
         <label>City / area <span class="required"></span><input id="city" name="city" required placeholder="e.g. Irbid, University Street" value="Irbid, Jordan"></label>
@@ -80,11 +80,11 @@
       </div>
       <div class="map-topline"><span><b>Location preview</b><small id="locationLabel">Approximate location · Irbid, Jordan</small></span><button type="button" id="useLocation" class="outline-button">⌖ Use my location</button></div>
       <div id="mapStatus" class="map-status">Loading map…</div><div id="locationMap" class="map"></div>
-      <p class="map-help"><span>ⓘ</span> You can move the marker to adjust the location. The demo uses sample coordinates until you allow GPS or move the marker.</p>
+      <p class="map-help"><span>ⓘ</span> You can move the marker to adjust the location. The exact point is shared only if you choose "Current location".</p>
       <label class="consent"><input type="checkbox" id="shareConsent" required><span>I agree to share my selected location with authorized BloodLink users so they can find me for donation requests. <b>*</b></span></label>
       <label class="consent"><input type="checkbox" id="availabilityConsent" required><span>I confirm that my availability status is accurate to the best of my knowledge. <b>*</b></span></label>
       <div class="submit-row"><button type="button" class="secondary-button" id="cancelButton">Cancel</button><button type="submit" class="primary-button"><span>♥</span> Submit donor offer <b>→</b></button></div>
-      <p class="form-footnote">This is a frontend demo. It does not publish your location or notify real recipients until connected to a backend.</p>
+      <p class="form-footnote">After you submit, recipients can find you on the donor map and send you requests.</p>
     </form>
 
     <aside class="side-column">
@@ -96,8 +96,9 @@
   <footer><span>© 2026 BloodLink</span><span>Made with <b>♥</b> for a more connected community</span><a href="/Account/Profile">My profile →</a></footer>
 </main>
 
-<div class="modal-backdrop" id="successModal" hidden><section class="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div class="success-check">✓</div><span class="eyebrow">DONOR OFFER SAVED</span><h2 id="successTitle">Thank you for stepping up.</h2><p>Your donor offer has been saved in this browser demo. In the live app, this would be sent to BloodLink's backend.</p><div class="success-summary" id="successSummary"></div><button class="primary-button" id="closeSuccess">Back to page</button></section></div>
+<div class="modal-backdrop" id="successModal" hidden><section class="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div class="success-check">✓</div><span class="eyebrow">DONOR OFFER SAVED</span><h2 id="successTitle">Thank you for stepping up.</h2><p>Your donor offer has been saved. You are now visible to people who need blood.</p><div class="success-summary" id="successSummary"></div><button class="primary-button" id="closeSuccess">Back to page</button></section></div>
 <script src="https://unpkg.com/leaflet@@1.9.4/dist/leaflet.js"></script>
+<script src="/js/api.js"></script>
 <script src="/js/donate.js"></script>
 <script>
 (() => {

@@ -51,7 +51,7 @@
       <div class="vitals-top"><span class="live-dot"></span><b>Platform live</b><small id="sideQueueText">Queues synced</small></div>
       <svg class="vitals-ecg ecg" data-cycles="3" viewBox="0 0 300 60" preserveAspectRatio="none"><path class="ecg-base"/><path class="ecg-trace"/></svg>
     </div>
-    <button class="logout" id="logoutButton"><span><svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg></span> Sign out</button>
+    <button class="logout" id="logoutButton" data-logout><span><svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg></span> Sign out</button>
   </div>
 </aside>
 <div class="sidebar-backdrop" aria-hidden="true"></div>
@@ -171,5 +171,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
+<script src="/js/api.js"></script>
 <script src="/js/admin.js"></script>
 </body></html>

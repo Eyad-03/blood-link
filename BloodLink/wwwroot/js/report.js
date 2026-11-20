@@ -2,25 +2,21 @@
    BloodLink — Report an issue (user page)
    - Live "specimen ticket" preview of the report
    - Inline validation, attachments, confirmation
-   Saves to the same localStorage key the admin console reads
-   (bloodlinkAdminReports), so the report appears in Admin → Reports as "New".
-   Demo persistence: replace saveReport() with an API call later.
+   Sends the report to the server (POST /api/reports — Controllers/Api/ReportsController.cs),
+   so it appears in Admin → Reports as "New".
    ===================================================================== */
 const $=id=>document.getElementById(id);
-const REPORTS_KEY="bloodlinkAdminReports";
 const MIN_BODY=20,MAX_FILES=5;
 const PRIORITY_LABEL={low:"Low priority",medium:"Medium priority",high:"High priority"};
 
-const read=(k,f)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}};
-const storedReports=()=>{const r=read(REPORTS_KEY,[]);return Array.isArray(r)?r:[]};
 
 const form=$("reportForm"),ticket=$("ticket"),page=$("page"),done=$("done");
 let files=[];
 
 /* ---------- Reference number + barcode ---------- */
+// The real number is given by the server when the report is sent.
 function nextId(){
-  const last=Math.max(3109,...storedReports().map(r=>Number(String(r.id).split("-").pop())||0));
-  return `RP-${last+1}`;
+  return "RP-NEW";
 }
 // Decorative barcode derived from the reference, so each ticket looks unique.
 function drawCode(id){
@@ -116,19 +112,9 @@ const drop=$("dropzone");
 drop.addEventListener("drop",e=>addFiles(e.dataTransfer.files));
 
 /* ---------- Saving ---------- */
-// Returns the saved report, or null if the browser refused to store it.
-function saveReport(d){
-  const reports=storedReports();
-  const rec={
-    id:nextId(),title:d.title,category:d.category,priority:d.priority,
-    from:d.from,role:d.role,email:d.email,
-    createdAt:new Date().toISOString(),
-    status:"New",read:false,
-    related:d.related,attachments:d.attachments.slice(0,MAX_FILES),body:d.body
-  };
-  reports.unshift(rec);
-  try{localStorage.setItem(REPORTS_KEY,JSON.stringify(reports))}catch{return null}
-  return rec;
+// POST /api/reports — returns the saved report (with its id).
+async function saveReport(d){
+  return await Api.post("/api/reports",{...d,attachments:d.attachments.slice(0,MAX_FILES)});
 }
 
 /* ---------- Events ---------- */
@@ -143,7 +129,7 @@ form.addEventListener("change",e=>{
   updateTicket();
 });
 
-form.addEventListener("submit",e=>{
+form.addEventListener("submit",async e=>{
   e.preventDefault();
   const firstBad=validateAll();
   if(firstBad){
@@ -152,13 +138,14 @@ form.addEventListener("submit",e=>{
     target.querySelector("input,textarea")?.focus({preventScroll:true});
     return;
   }
-  const rec=saveReport(readForm());
-  if(!rec){
-    $("formError").textContent="Your browser blocked saving the report. Check its storage settings and try again.";
+  let rec;
+  try{rec=await saveReport(readForm())}
+  catch(err){
+    $("formError").textContent=err.message;
     $("formError").hidden=false;
     return;
   }
-  showDone(rec);
+  showDone({...rec,id:"RP-"+rec.id});
 });
 
 function showDone(rec){

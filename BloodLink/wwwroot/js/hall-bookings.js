@@ -1,11 +1,11 @@
 /* =====================================================================
    Hall bookings — hospital dashboard section
-   Reads/writes the same storage key as hallRequests.html, so a payment
-   made here shows as "Booking confirmed" on the public requests page too.
+   Shows the hall bookings this hospital account made and lets it pay:
+     GET  /api/halls/bookings/mine, POST /api/halls/bookings/{id}/pay
    Status values stay compatible: "Pending approval" | "Approved" | "Paid" | "Rejected"
    ===================================================================== */
 (function () {
-  const STORAGE_KEY = "mubadartiHallRequests";
+  let myRequests = [];
   const byId = id => document.getElementById(id);
   if (!byId("hall-bookings")) return;
 
@@ -32,26 +32,11 @@
   };
   const st = s => STATUS[s] || STATUS["Pending approval"];
 
-  /* ---------- Storage ---------- */
-  function demoRequests() {
-    const now = Date.now(), day = 864e5;
-    return [
-      { id: "HR-2026-014", hallName: "Al-Nakheel Conference Hall", eventType: "Blood donation campaign", organization: "Al Hayat Hospital", contactName: "Hospital Admin", email: "bloodbank@alhayat.example", phone: "+962 2 700 0000", attendees: 180, eventTime: "09:00 – 15:00", eventDate: "2026-11-07", governorate: "Irbid", price: 450, status: "Approved", createdAt: new Date(now - 3 * day).toISOString(), description: "Community blood drive with on-site screening and refreshments for donors.", documents: [{ label: "Hospital authorization letter", fileName: "authorization.pdf" }] },
-      { id: "HR-2026-013", hallName: "Yarmouk Cultural Center", eventType: "Awareness seminar", organization: "Al Hayat Hospital", contactName: "Hospital Admin", email: "bloodbank@alhayat.example", phone: "+962 2 700 0000", attendees: 120, eventTime: "11:00 – 14:00", eventDate: "2026-11-21", governorate: "Irbid", price: 300, status: "Pending approval", createdAt: new Date(now - 1 * day).toISOString(), description: "Seminar for university students on donation eligibility and myths.", documents: [] },
-      { id: "HR-2026-011", hallName: "Grand Palace Ballroom", eventType: "Donor appreciation evening", organization: "Al Hayat Hospital", contactName: "Hospital Admin", email: "bloodbank@alhayat.example", phone: "+962 2 700 0000", attendees: 250, eventTime: "18:00 – 22:00", eventDate: "2026-12-12", governorate: "Amman", price: 900, status: "Paid", paidAt: new Date(now - 6 * day).toISOString(), receipt: "HB-DEMO01", payMethod: "card", createdAt: new Date(now - 12 * day).toISOString(), description: "Annual evening honoring repeat donors.", documents: [] },
-      { id: "HR-2026-009", hallName: "Downtown Events Hall", eventType: "Blood donation campaign", organization: "Al Hayat Hospital", contactName: "Hospital Admin", email: "bloodbank@alhayat.example", phone: "+962 2 700 0000", attendees: 90, eventTime: "10:00 – 13:00", eventDate: "2026-10-30", governorate: "Irbid", price: 220, status: "Rejected", createdAt: new Date(now - 15 * day).toISOString(), description: "Weekend drive in the city center.", documents: [] }
-    ];
-  }
-  function readRequests() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw === null) { const seed = demoRequests(); localStorage.setItem(STORAGE_KEY, JSON.stringify(seed)); return seed; }
-      const data = JSON.parse(raw);
-      return Array.isArray(data) ? data : [];
-    } catch { return []; }
-  }
-  function writeRequests(rows) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); } catch { notify("Could not save the payment in this browser."); }
+  /* ---------- Data from the server ---------- */
+  function readRequests() { return myRequests; }
+  async function loadRequests() {
+    try { myRequests = await Api.get("/api/halls/bookings/mine"); } catch { myRequests = []; }
+    render();
   }
 
   /* ---------- Rendering ---------- */
@@ -189,32 +174,25 @@
     if (!byId("hbTerms").checked) return "Please confirm the booking details.";
     return "";
   }
-  function pay() {
+  async function pay() {
     const err = validate(), box = byId("hbPayError");
     box.hidden = !err; box.textContent = err; if (err) return;
     const m = method();
     showStep("processing");
-    setTimeout(() => {
-      const rows = readRequests();
-      const r = rows.find(x => String(x.id) === String(payingId));
-      if (!r || r.status !== "Approved") { showStep("pay"); box.hidden = false; box.textContent = "This request is no longer awaiting payment."; render(); return; }
-      r.status = "Paid";
-      r.paidAt = new Date().toISOString();
-      r.payMethod = m;
-      r.amountPaid = Number(r.price) || 0;
-      r.receipt = `HB-${Date.now().toString(36).toUpperCase()}`;
-      writeRequests(rows);
-      // Card details are discarded; only the method is recorded.
-      ["hbCardNumber", "hbCardExpiry", "hbCardCvc"].forEach(f => (byId(f).value = ""));
-      byId("hbSuccessText").textContent = `${r.hallName} is booked for ${dateLabel(r.eventDate)}. The status is now “Booking confirmed”.`;
-      byId("hbRcptId").textContent = r.receipt;
-      byId("hbRcptAmount").textContent = money(r.amountPaid);
-      byId("hbRcptMethod").textContent = { card: "Card", cliq: "CliQ transfer", invoice: "Monthly invoice" }[m];
-      showStep("success");
-      render();
-      celebrate();
-      notify(`Payment received — ${r.id} is confirmed.`);
-    }, 1400);
+    // POST /api/halls/bookings/{id}/pay — card details are never sent, only the method.
+    let r;
+    try { r = await Api.post(`/api/halls/bookings/${encodeURIComponent(payingId)}/pay`, { method: m }); }
+    catch (err) { showStep("pay"); box.hidden = false; box.textContent = err.message; loadRequests(); return; }
+    await loadRequests();
+    ["hbCardNumber", "hbCardExpiry", "hbCardCvc"].forEach(f => (byId(f).value = ""));
+    byId("hbSuccessText").textContent = `${r.hallName} is booked for ${dateLabel(r.eventDate)}. The status is now “Booking confirmed”.`;
+    byId("hbRcptId").textContent = r.receipt;
+    byId("hbRcptAmount").textContent = money(r.amountPaid);
+    byId("hbRcptMethod").textContent = { card: "Card", cliq: "CliQ transfer", invoice: "Monthly invoice" }[m];
+    showStep("success");
+    render();
+    celebrate();
+    notify(`Payment received — ${r.id} is confirmed.`);
   }
 
   /* ---------- Events ---------- */
@@ -241,11 +219,11 @@
   byId("hbCardExpiry").addEventListener("input", e => { let v = e.target.value.replace(/\D/g, "").slice(0, 4); if (v.length > 2) v = v.slice(0, 2) + "/" + v.slice(2); e.target.value = v; });
   byId("hbCardCvc").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4); });
 
-  // Stay in sync when a venue provider updates a status in another tab.
-  window.addEventListener("storage", e => { if (e.key === STORAGE_KEY || e.key === null) render(); });
-  window.addEventListener("focus", render);
+  // Refresh when the user comes back to the tab (the admin may have approved a booking).
+  window.addEventListener("focus", loadRequests);
 
   window.renderHallBookings = render;
   window.hallPaymentsDue = () => readRequests().filter(r => r.status === "Approved").length;
   render();
+  loadRequests();
 })();

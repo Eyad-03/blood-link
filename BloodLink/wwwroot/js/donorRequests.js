@@ -1,27 +1,19 @@
 const $ = id => document.getElementById(id);
-const STORAGE_KEY = "bloodlinkDonorIncomingRequests";
-const AVAILABILITY_KEY = "bloodlinkDonorAvailability";
+Api.requireLogin(["Donor"]);
 
-const demoRequests = [
-    { id: "BR-2026-0214", recipientName: "Ahmad Saleh", initials: "AS", bloodType: "O−", location: "Al-Hashmi, Irbid", distance: "2.4 km away", sentAt: "Today, 10:42 AM", dateValue: "2026-10-10T10:42:00", status: "Pending", priority: "Urgent", units: 2, hospital: "Al Hayat Hospital", message: "We urgently need O− blood for a family member. The hospital can coordinate the donation.", recipientPhone: "+962 7 9000 2001", recipientEmail: "ahmad.recipient@example.com" },
-    { id: "BR-2026-0212", recipientName: "Maya Nasser", initials: "MN", bloodType: "O−", location: "University Street, Irbid", distance: "3.1 km away", sentAt: "Today, 9:15 AM", dateValue: "2026-10-10T09:15:00", status: "Pending", priority: "High", units: 1, hospital: "Princess Basma Hospital", message: "Looking for a compatible donor. Please let us know if you are available.", recipientPhone: "+962 7 9000 2002", recipientEmail: "maya.nasser@example.com" },
-    { id: "BR-2026-0198", recipientName: "Khaled Omar", initials: "KO", bloodType: "A+", location: "Downtown, Irbid", distance: "4.6 km away", sentAt: "Yesterday, 4:15 PM", dateValue: "2026-10-09T16:15:00", status: "Accepted", priority: "Normal", units: 1, hospital: "Irbid Specialty Hospital", message: "Thank you for considering my request. Please coordinate with the hospital.", recipientPhone: "+962 7 9000 2003", recipientEmail: "khaled.omar@example.com" },
-    { id: "BR-2026-0186", recipientName: "Sara Haddad", initials: "SH", bloodType: "B+", location: "Al-Naseem, Irbid", distance: "5.2 km away", sentAt: "Oct 7, 2026", dateValue: "2026-10-07T12:00:00", status: "Completed", priority: "Normal", units: 1, hospital: "Al Hayat Hospital", message: "Thank you for your help.", recipientPhone: "", recipientEmail: "" }
-];
+/* Requests come from the server: GET /api/requests/received (Controllers/Api/RequestsController.cs) */
+let requests = [];
 let activeFilter = "All";
 let selectedRequestId = null;
 BloodChat.init({ me: "donor" });
 
 function esc(value) { return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
-function readRequests() {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored !== null) return JSON.parse(stored);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(demoRequests));
-        return [...demoRequests];
-    } catch { return [...demoRequests]; }
+function readRequests() { return requests; }
+async function loadRequests() {
+    try { requests = await Api.get("/api/requests/received"); }
+    catch (err) { toast(err.message); }
+    renderRequests();
 }
-function saveRequests(rows) { localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }
 function statusClass(status) { return ({ Pending: "pending", Accepted: "accepted", Declined: "declined", Completed: "completed" })[status] || "pending"; }
 function statusLabel(status) { return ({ Pending: "Awaiting your response", Accepted: "Request accepted", Declined: "Request declined", Completed: "Donation completed" })[status] || status; }
 function renderSummary(rows) {
@@ -82,25 +74,14 @@ function openChat(id) {
     closeModal("detailsModal");
     BloodChat.open(r.id, { name: r.recipientName, initials: (r.initials || r.recipientName.split(" ").map(n => n[0]).join("").slice(0, 2)), sub: `Blood recipient · ${r.location}`, meta: [["Request", r.id], ["Blood", r.bloodType], ["Units", r.units], ["Priority", r.priority || "Normal"], ["Hospital", r.hospital]], readOnly: r.status === "Completed" });
 }
-/* Mirror the donor's answer on the requester's page (/Recipient/Requests). Priority is never changed here. */
-function syncRequesterStatus(id, status) {
-    try {
-        const key = "bloodlinkRecipientRequests", sent = JSON.parse(localStorage.getItem(key) || "[]");
-        const mine = Array.isArray(sent) && sent.find(x => x.id === id);
-        if (!mine) return;
-        mine.status = status; mine.updatedAt = new Date().toISOString();
-        localStorage.setItem(key, JSON.stringify(sent));
-    } catch { }
-}
 function closeModal(id) { $(id).classList.add("hidden"); document.body.style.overflow = ""; }
-function updateStatus(id, status) {
-    const rows = readRequests(), r = rows.find(x => x.id === id); if (!r) return;
+// PUT /api/requests/{id}/status — the server also adds the "accepted" / "completed" note in the chat.
+async function updateStatus(id, status) {
+    const r = readRequests().find(x => x.id === id); if (!r) return;
     if (status === "Accepted" && !$("availabilityToggle").checked) { toast("Turn on your availability before accepting a request."); return; }
-    r.status = status; r.updatedAt = new Date().toISOString(); saveRequests(rows);
-    syncRequesterStatus(id, status);
-    if (status === "Accepted") BloodChat.addSystem(id, "Request accepted by the donor. You can now chat to coordinate the donation safely.");
-    if (status === "Completed") BloodChat.addSystem(id, "Donation marked as completed. This conversation is now read-only.");
-    closeModal("detailsModal"); renderRequests();
+    try { await Api.put(`/api/requests/${encodeURIComponent(id)}/status`, { status }); }
+    catch (err) { toast(err.message); return; }
+    closeModal("detailsModal"); await loadRequests();
     toast(status === "Accepted" ? "Request accepted. Coordinate through the hospital." : status === "Declined" ? "Request declined." : "Donation marked as completed.");
 }
 document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => { activeFilter = tab.dataset.filter; renderRequests(); }));
@@ -122,14 +103,25 @@ $("chatDetailBtn").addEventListener("click", () => selectedRequestId && openChat
 document.querySelectorAll("[data-close]").forEach(btn => btn.addEventListener("click", () => closeModal(btn.dataset.close)));
 $("detailsModal").addEventListener("click", e => { if (e.target === $("detailsModal")) closeModal("detailsModal"); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach(m => closeModal(m.id)); });
-const savedAvailability = localStorage.getItem(AVAILABILITY_KEY);
-if (savedAvailability !== null) $("availabilityToggle").checked = savedAvailability === "true";
+/* Availability is saved on the server (PUT /api/profile/availability). */
 function renderAvailability() {
     const available = $("availabilityToggle").checked;
-    localStorage.setItem(AVAILABILITY_KEY, String(available));
     $("availabilityText").textContent = available ? "Available to donate" : "Not available right now";
     $("availabilityToggle").closest(".availability").classList.toggle("unavailable", !available);
 }
-$("availabilityToggle").addEventListener("change", () => { renderAvailability(); toast($("availabilityToggle").checked ? "Your status is now available." : "Your status is now unavailable."); });
+$("availabilityToggle").addEventListener("change", async () => {
+    const available = $("availabilityToggle").checked;
+    renderAvailability();
+    try {
+        await Api.put("/api/profile/availability", { available });
+        toast(available ? "Your status is now available." : "Your status is now unavailable.");
+    } catch (err) {
+        $("availabilityToggle").checked = !available; renderAvailability(); toast(err.message);
+    }
+});
+
+// Start: read my availability and my requests from the server.
+Api.get("/api/profile").then(p => { $("availabilityToggle").checked = !!p.available; renderAvailability(); }).catch(() => { });
 renderAvailability();
 renderRequests();
+loadRequests();

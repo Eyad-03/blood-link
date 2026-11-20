@@ -58,6 +58,10 @@ namespace BloodLink.Models.Entities
         public string? DeclineReason { get; set; }
         public bool DonorNotified { get; set; }
 
+        // Who cancelled the appointment: "donor" or "hospital".
+        [MaxLength(20)]
+        public string? CancelledBy { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }

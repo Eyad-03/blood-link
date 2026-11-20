@@ -1,29 +1,13 @@
 const $=id=>document.getElementById(id);
 const reduceMotion=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const BLOOD_TYPES=["O+","O-","A+","A-","B+","B-","AB+","AB-"];
-const initialInventory={"O+":52,"O-":12,"A+":44,"A-":8,"B+":36,"B-":6,"AB+":61,"AB-":29};
-const initialRecords=[
-{id:"DV-2026-006",donor:"Lina Khalil",recipient:"Patient #2841",type:"O-",units:2,date:"2026-10-10",status:"Verified",notes:"Hospital transfer confirmed"},
-{id:"DV-2026-005",donor:"Omar Haddad",recipient:"Patient #2839",type:"A+",units:3,date:"2026-10-09",status:"Verified",notes:"Recipient receipt confirmed"},
-{id:"DV-2026-004",donor:"Hala Mahmoud",recipient:"Patient #2835",type:"B-",units:1,date:"2026-10-09",status:"Pending verification",notes:"Awaiting staff confirmation"},
-{id:"DV-2026-003",donor:"Zaid Fawzi",recipient:"Patient #2828",type:"O+",units:2,date:"2026-10-08",status:"Verified",notes:"Hospital transfer confirmed"},
-{id:"DV-2026-002",donor:"Sara Nasser",recipient:"Patient #2822",type:"AB-",units:1,date:"2026-10-07",status:"Pending verification",notes:"Awaiting recipient confirmation"},
-{id:"DV-2026-001",donor:"Yousef Saleh",recipient:"Patient #2819",type:"A-",units:1,date:"2026-10-06",status:"Verified",notes:"Hospital transfer confirmed"}
-];
-const donors=[
- {name:"Lina Khalil",email:"lina.khalil@example.com",type:"O+",location:"University Street, Irbid",last:"12 Aug 2026",availability:"Available"},
- {name:"Omar Haddad",email:"omar.haddad@example.com",type:"A-",location:"Downtown, Irbid",last:"28 Jul 2026",availability:"Available"},
- {name:"Hala Mahmoud",email:"hala.mahmoud@example.com",type:"B+",location:"Al-Hashmi, Irbid",last:"02 Sep 2026",availability:"Not active"},
- {name:"Zaid Fawzi",email:"zaid.fawzi@example.com",type:"AB+",location:"Al-Naseem, Irbid",last:"15 Jun 2026",availability:"Available"},
- {name:"Sara Nasser",email:"sara.nasser@example.com",type:"O-",location:"Khalda, Amman",last:"09 Aug 2026",availability:"Available"},
- {name:"Yousef Saleh",email:"yousef.saleh@example.com",type:"B-",location:"Irbid City Center",last:"20 Jul 2026",availability:"Available"}
-];
+/* Data comes from the server (Controllers/Api/HospitalApiController.cs) — see loadDashboard() at the bottom. */
+Api.requireLogin(["Hospital"]);
+let donors=[];      // GET /api/hospital/donors
 const read=(key,fallback)=>{try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback}catch{return fallback}};
 const save=(key,val)=>localStorage.setItem(key,JSON.stringify(val));
-let records=read("bloodlinkDonationRecords",initialRecords);
-// Adding a record documents it, so every record counts as verified.
-records.forEach(r=>{r.status="Verified"});
-let inventory=read("bloodlinkHospitalInventory",initialInventory);
+let records=[];     // GET /api/hospital/records
+let inventory={};   // GET /api/hospital/inventory  → { "O+": 52, ... }
 let requestChart=null,inventoryChart=null,reportChart=null,toastTimer=null;
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(message){const el=$("toast");el.textContent=message;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),2800)}
@@ -152,12 +136,18 @@ $("manageInventory").addEventListener("click",()=>navigate("inventory"));
 if($("recentRequestsBody"))$("recentRequestsBody").addEventListener("click",e=>{const p=e.target.closest("[data-print]");const v=e.target.closest("[data-verify]");if(p)printRecord(p.dataset.print);if(v)verifyRecord(v.dataset.verify);});
 $("donationRecordsBody").addEventListener("click",e=>{const p=e.target.closest("[data-print]");const v=e.target.closest("[data-verify]");if(p)printRecord(p.dataset.print);if(v)verifyRecord(v.dataset.verify);});
 if($("allRequestsBody"))$("allRequestsBody").addEventListener("click",e=>{const p=e.target.closest("[data-print]");const v=e.target.closest("[data-verify]");if(p)printRecord(p.dataset.print);if(v)verifyRecord(v.dataset.verify);});
-function verifyRecord(id){const r=records.find(x=>x.id===id);if(!r)return;if(!confirm(`Confirm that donation ${id} has been checked and can be marked Verified?`))return;r.status="Verified";save("bloodlinkDonationRecords",records);renderRecords();bloodBurst("#13895f");flashRow(id);toast(`${id} verified. You can now print its record.`);}
+async function verifyRecord(id){const r=records.find(x=>x.id===id);if(!r)return;if(!confirm(`Confirm that donation ${id} has been checked and can be marked Verified?`))return;
+ try{await Api.put(`/api/hospital/records/${encodeURIComponent(id)}/verify`)}catch(err){toast(err.message);return}
+ r.status="Verified";renderRecords();bloodBurst("#13895f");flashRow(id);toast(`${id} verified. You can now print its record.`);}
 $("recordSearch").addEventListener("input",renderRecords);
 $("newDonationButton").addEventListener("click",()=>{$("createRecordPanel").scrollIntoView({behavior:"smooth",block:"start"});$("donationForm").elements.donor.focus()});
 $("donationDate").value=new Date().toISOString().slice(0,10);
-$("donationForm").addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(e.currentTarget);const rec={id:`DV-${new Date().getFullYear()}-${String(Math.max(0,...records.map(r=>Number(r.id.split("-").pop())||0))+1).padStart(3,"0")}`,donor:fd.get("donor").trim(),recipient:fd.get("recipient").trim(),type:fd.get("type"),units:Number(fd.get("units")),date:fd.get("date"),status:"Verified",notes:fd.get("notes").trim()};records.unshift(rec);save("bloodlinkDonationRecords",records);e.currentTarget.reset();$("donationDate").value=new Date().toISOString().slice(0,10);renderRecords();bloodBurst();flashRow(rec.id);toast(`Donation record ${rec.id} saved.`);$("recordTableCount")?.scrollIntoView({behavior:"smooth",block:"center"});});
-if($("allRequestsBody"))$("allRequestsBody").addEventListener("change",e=>{const s=e.target.closest(".row-status");if(!s)return;const r=records.find(x=>x.id===s.dataset.id);if(r){r.status=s.value;save("bloodlinkDonationRecords",records);renderRecords();toast(`${r.id} status updated to ${r.status}.`)}});
+$("donationForm").addEventListener("submit",async e=>{e.preventDefault();const form=e.currentTarget;const fd=new FormData(form);
+ // POST /api/hospital/records — the server returns the saved record.
+ let rec;
+ try{rec=await Api.post("/api/hospital/records",{donor:fd.get("donor").trim(),recipient:fd.get("recipient").trim(),type:fd.get("type"),units:Number(fd.get("units")),date:fd.get("date"),notes:fd.get("notes").trim()})}
+ catch(err){toast(err.message);return}
+ records.unshift(rec);form.reset();$("donationDate").value=new Date().toISOString().slice(0,10);renderRecords();bloodBurst();flashRow(rec.id);toast(`Donation record ${rec.id} saved.`);$("recordTableCount")?.scrollIntoView({behavior:"smooth",block:"center"});});
 
 $("donorSearch").addEventListener("input",renderDonors);
 $("donorBloodFilter")?.addEventListener("change",renderDonors);
@@ -178,8 +168,7 @@ $("menuButton").addEventListener("click",()=>{
  const opened=$("sidebar").classList.toggle("open");
  $("menuButton").setAttribute("aria-expanded",String(opened));
 });
-const HOME_URL="/"; // غيّر هذا السطر إذا كان اسم صفحة الـ home مختلفاً (مثلاً /)
-$("logoutButton").addEventListener("click",()=>{window.location.href=HOME_URL});
+// "Sign out" is handled by api.js (the button has data-logout).
 $("chartRange").addEventListener("change",()=>{
  if(!requestChart)return;const v=$("chartRange").value;
  const labels=v==="7"?["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]:v==="12"?["Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct"]:["May","Jun","Jul","Aug","Sep","Oct"];
@@ -187,25 +176,28 @@ $("chartRange").addEventListener("change",()=>{
  const fulfilled=v==="7"?[12,18,12,20,17,15,22]:v==="12"?[55,61,68,63,71,78,68,80,74,102,91,84]:[68,80,74,102,91,84];
  requestChart.data.labels=labels;requestChart.data.datasets[0].data=incoming;requestChart.data.datasets[1].data=fulfilled;requestChart.update();
 });
-$("saveHospitalProfile").addEventListener("click",()=>{const data={name:$("hospitalName").value,email:$("hospitalEmail").value,phone:$("hospitalPhone").value,city:$("hospitalCity").value,address:$("hospitalAddress").value};save("bloodlinkHospitalProfile",data);toast("Hospital profile saved in this browser demo.")});
+$("saveHospitalProfile").addEventListener("click",async()=>{const data={name:$("hospitalName").value,email:$("hospitalEmail").value,phone:$("hospitalPhone").value,city:$("hospitalCity").value,address:$("hospitalAddress").value};
+ try{await Api.put("/api/hospital/profile",data)}catch(err){toast(err.message);return}
+ showHospitalName(data.name);toast("Hospital profile saved.")});
 ["lowStockSetting","urgentSetting","compactSetting"].forEach(id=>$(id).addEventListener("change",()=>{
  const settings={lowStock:$("lowStockSetting").checked,urgent:$("urgentSetting").checked,compact:$("compactSetting").checked};save("bloodlinkHospitalSettings",settings);
  const banner=document.querySelector(".alert-banner");if(banner)banner.style.display=settings.lowStock?"flex":"none";
  document.querySelectorAll(".priority.urgent").forEach(el=>el.closest("tr").style.display=settings.urgent?"":"none");
  document.querySelectorAll("table").forEach(t=>t.classList.toggle("compact-table",settings.compact));
- $("settingsMessage").textContent="Settings saved in this browser demo.";
+ $("settingsMessage").textContent="Settings saved in this browser.";
 }));
 $("todayDate").textContent=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
 // Personalize the greeting to the visitor's local time.
 const greetingHeading=document.querySelector(".welcome-row h1");
 if(greetingHeading){const hour=new Date().getHours();const greeting=hour<12?"Good morning, ":hour<18?"Good afternoon, ":"Good evening, ";greetingHeading.childNodes[0].textContent=greeting;}
-// Restore browser-demo preferences and profile values on refresh.
-const savedProfile=read("bloodlinkHospitalProfile",null);
-if(savedProfile){
- const fields={hospitalName:savedProfile.name,hospitalEmail:savedProfile.email,hospitalPhone:savedProfile.phone,hospitalCity:savedProfile.city,hospitalAddress:savedProfile.address};
+// Hospital profile from the server (GET /api/hospital/profile).
+function showHospitalName(name){const switchName=document.querySelector(".hospital-switch b");if(switchName&&name)switchName.textContent=name}
+function fillProfile(p){
+ const fields={hospitalName:p.name,hospitalEmail:p.email,hospitalPhone:p.phone,hospitalCity:p.city,hospitalAddress:p.address};
  Object.entries(fields).forEach(([id,value])=>{if($(id)&&value!==undefined)$(id).value=value});
- const switchName=document.querySelector(".hospital-switch b");if(switchName&&savedProfile.name)switchName.textContent=savedProfile.name;
+ showHospitalName(p.name);
 }
+// Display preferences stay in this browser.
 const savedSettings=read("bloodlinkHospitalSettings",null);
 if(savedSettings){
  if($("lowStockSetting"))$("lowStockSetting").checked=savedSettings.lowStock!==false;
@@ -228,6 +220,17 @@ document.addEventListener("click",event=>{
  }
 });
 renderRecords();renderInventory();renderDonors();initCharts();
+
+// Load everything from the server, then draw the dashboard again.
+async function loadDashboard(){
+ try{
+  const [profile,inv,recs,donorList]=await Promise.all([
+   Api.get("/api/hospital/profile"),Api.get("/api/hospital/inventory"),Api.get("/api/hospital/records"),Api.get("/api/hospital/donors")]);
+  fillProfile(profile);inventory=inv;records=recs;donors=donorList;
+  renderRecords();renderInventory();renderDonors();
+ }catch(err){toast(err.message)}
+}
+loadDashboard();
 
 /* =====================================================================
    Motion layer — heartbeat-themed interactions
@@ -330,7 +333,7 @@ function flashRow(id){
    Shared data/template lives in ads-data.js (window.BloodLinkAds).
    ===================================================================== */
 const ADS=window.BloodLinkAds;
-let ads=ADS?ADS.load():[];
+let ads=[];   // my hospital's ads — GET /api/hospital/ads
 let selectedPlan="featured";
 let pendingAd=null;
 const hospitalName=()=>($("hospitalName")?.value||"Al Hayat Hospital").trim();
@@ -435,24 +438,25 @@ function validatePayment(){
  if(!$("adTerms").checked)return "Please confirm the ad details and fee terms.";
  return "";
 }
-function pay(){
+async function pay(){
  const err=validatePayment(),box=$("payError");box.hidden=!err;box.textContent=err;if(err)return;
- const m=selectedMethod(),f=ADS.fees(pendingAd.plan);
+ const m=selectedMethod();
  showStep("processing");
- setTimeout(()=>{
-  const ad={...pendingAd,id:ADS.nextId(ads),paid:f.total,fee:f.fee,vat:f.vat,payMethod:m,receipt:`RC-${Date.now().toString(36).toUpperCase()}`,views:0,cancelled:false,createdAt:new Date().toISOString()};
-  ads.unshift(ad);ADS.save(ads);
-  // Card details are intentionally discarded; only the method is recorded.
-  ["cardNumber","cardExpiry","cardCvc"].forEach(id=>$(id).value="");
-  const live=ADS.status(ad)==="Active";
-  $("successText").textContent=live?`"${ad.title}" is now live on the public ads page until ${ADS.formatDate(ad.endDate)}.`:`"${ad.title}" is scheduled to go live on ${ADS.formatDate(ad.startDate)}.`;
-  $("rcptId").textContent=ad.receipt;$("rcptAmount").textContent=ADS.money(ad.paid);
-  $("rcptMethod").textContent={card:"Card",cliq:"CliQ transfer",invoice:"Monthly invoice"}[m];
-  $("viewPublicAd").href=`/Home/Ads#${encodeURIComponent(ad.id)}`;
-  showStep("success");
-  $("adForm").reset();resetAdFormDefaults();updateAdPreview();renderAds();bloodBurst("#13895f");
-  toast(`Payment received — ${ad.id} ${live?"is live":"is scheduled"}.`);
- },1400);
+ // POST /api/hospital/ads — the server calculates the fee and returns the saved ad.
+ let ad;
+ try{ad=await Api.post("/api/hospital/ads",{...pendingAd,payMethod:m})}
+ catch(err){showStep("pay");const box=$("payError");box.hidden=false;box.textContent=err.message;return}
+ ads.unshift(ad);
+ // Card details are intentionally discarded; only the method is recorded.
+ ["cardNumber","cardExpiry","cardCvc"].forEach(id=>$(id).value="");
+ const live=ADS.status(ad)==="Active";
+ $("successText").textContent=live?`"${ad.title}" is now live on the public ads page until ${ADS.formatDate(ad.endDate)}.`:`"${ad.title}" is scheduled to go live on ${ADS.formatDate(ad.startDate)}.`;
+ $("rcptId").textContent=ad.receipt;$("rcptAmount").textContent=ADS.money(ad.paid);
+ $("rcptMethod").textContent={card:"Card",cliq:"CliQ transfer",invoice:"Monthly invoice"}[m];
+ $("viewPublicAd").href=`/Home/Ads#${encodeURIComponent(ad.id)}`;
+ showStep("success");
+ $("adForm").reset();resetAdFormDefaults();updateAdPreview();renderAds();bloodBurst("#13895f");
+ toast(`Payment received — ${ad.id} ${live?"is live":"is scheduled"}.`);
 }
 function resetAdFormDefaults(){
  const t=ADS.today();
@@ -476,7 +480,7 @@ function initAds(){
   const b=e.target.closest("[data-stop-ad]");if(!b)return;
   const ad=ads.find(a=>a.id===b.dataset.stopAd);if(!ad)return;
   if(!confirm(`Stop ${ad.id}? It will be removed from the public page. Posting fees are non-refundable.`))return;
-  ad.cancelled=true;ADS.save(ads);renderAds();toast(`${ad.id} stopped and removed from the public page.`);
+  Api.put(`/api/hospital/ads/${encodeURIComponent(ad.id)}/stop`).then(()=>{ad.cancelled=true;renderAds();toast(`${ad.id} stopped and removed from the public page.`)}).catch(err=>toast(err.message));
  });
  // Checkout interactions
  dlg.addEventListener("click",e=>{if(!dlg.querySelector('[data-step="processing"]').hidden)return;if(e.target.closest("[data-close]")||e.target===dlg)closeCheckout()});
@@ -487,16 +491,16 @@ function initAds(){
  $("cardExpiry").addEventListener("input",e=>{let v=e.target.value.replace(/\D/g,"").slice(0,4);if(v.length>2)v=v.slice(0,2)+"/"+v.slice(2);e.target.value=v});
  $("cardCvc").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,4)});
  // Keep in sync if the public page updates views in another tab.
- window.addEventListener("storage",e=>{if(e.key===ADS.KEY){ads=ADS.load();renderAds()}});
+ ADS.fetchMine().then(list=>{ads=list;renderAds()});   // load my ads from the server
 }
 initAds();
 /* =====================================================================
    Donation appointments — donors book a visit (/Donor/Appointments),
    the hospital reviews the eligibility answers and confirms a date + time.
-   Shared storage key: bloodlinkDonationAppointments
+   Data: GET /api/hospital/appointments, PUT /api/hospital/appointments/{id}
    ===================================================================== */
-const APPT_KEY="bloodlinkDonationAppointments",APPT_FACILITY="ORG-1031",APPT_CAPACITY=3,APPT_OPEN="08:00",APPT_CLOSE="16:00";
-let appts=read(APPT_KEY,[]);
+const APPT_CAPACITY=3,APPT_OPEN="08:00",APPT_CLOSE="16:00";
+let appts=[];
 let apptFilter="All",apptCurrent=null,apptAction=null;
 const apptPad=n=>String(n).padStart(2,"0");
 const apptYmd=d=>`${d.getFullYear()}-${apptPad(d.getMonth()+1)}-${apptPad(d.getDate())}`;
@@ -505,26 +509,9 @@ const apptAdd=(s,n)=>{const d=new Date(s+"T12:00:00");d.setDate(d.getDate()+n);r
 const apptIsFri=s=>new Date(s+"T12:00:00").getDay()===5;
 const apptDate=(s,long)=>{if(!s)return "—";const d=new Date(s+"T12:00:00");return Number.isNaN(d.getTime())?esc(s):d.toLocaleDateString("en-GB",long?{weekday:"long",day:"numeric",month:"long",year:"numeric"}:{weekday:"short",day:"numeric",month:"short",year:"numeric"})};
 const apptTime=t=>{if(!/^\d{2}:\d{2}$/.test(t||""))return "—";const [h,m]=t.split(":").map(Number);return `${h%12||12}:${apptPad(m)} ${h<12?"AM":"PM"}`};
-const myAppts=()=>appts.filter(a=>a.facilityId===APPT_FACILITY);
+const myAppts=()=>appts;   // the server returns only this hospital's appointments
 const apptPendingCount=()=>myAppts().filter(a=>a.status==="Pending").length;
-const apptSave=()=>save(APPT_KEY,appts);
-
-/* Demo requests so the section isn't empty the first time (added once). */
-(function seedAppointments(){
- try{if(localStorage.getItem("bloodlinkAppointmentsSeeded"))return}catch{return}
- const t=apptToday(),open=n=>{let d=apptAdd(t,n);while(apptIsFri(d))d=apptAdd(d,1);return d},iso=n=>new Date(Date.now()-n*3600e3).toISOString();
- const base=(id,name,phone,email,type,rd,rt,el,rest)=>({id,ownerId:"demo",facilityId:APPT_FACILITY,facilityName:"Al Hayat Hospital",facilityType:"Hospital",facilityCity:"Irbid",donor:{name,phone,email,type},requestedDate:rd,requestedTime:rt,notes:"",eligibility:el,status:"Pending",confirmedDate:"",confirmedTime:"",hospitalNote:"",declineReason:"",donorNotified:true,createdAt:iso(5),updatedAt:iso(5),...rest});
- const clean={age:29,weight:78,lastDonation:"",well:"yes",meds:"no",medsDetail:"",travel:"no",travelDetail:"",procedure:"no",state:"ok",flags:[]};
- const demo=[
-  base("AP-2026-011","Omar Haddad","0795551122","omar.haddad@example.com","A-",open(2),"09:00",{...clean,age:34,weight:84,lastDonation:apptAdd(t,-120)},{createdAt:iso(2),notes:"I can only come in the morning."}),
-  base("AP-2026-012","Hala Mahmoud","0786667744","hala.mahmoud@example.com","B+",open(3),"11:30",{...clean,age:26,weight:61,meds:"yes",medsDetail:"Antibiotics (finished 3 days ago)",travel:"yes",travelDetail:"Turkey, 2 months ago",state:"review",flags:["Takes medication: Antibiotics (finished 3 days ago)","Travelled abroad in the last 3 months: Turkey, 2 months ago"]},{createdAt:iso(9)}),
-  base("AP-2026-013","Zaid Fawzi","0777894561","zaid.fawzi@example.com","AB+",open(1),"10:30",{...clean,age:41,weight:92,lastDonation:apptAdd(t,-200)},{status:"Approved",confirmedDate:open(1),confirmedTime:"10:30",hospitalNote:"Please bring your ID.",createdAt:iso(30),updatedAt:iso(20)}),
-  base("AP-2026-014","Sara Nasser","0798123400","sara.nasser@example.com","O-",apptAdd(t,-5),"09:30",{...clean,age:31,weight:65},{status:"Completed",confirmedDate:apptAdd(t,-5),confirmedTime:"09:30",createdAt:iso(190),updatedAt:iso(120)})
- ];
- const have=new Set(appts.map(a=>a.id));
- appts=[...appts,...demo.filter(d=>!have.has(d.id))];apptSave();
- try{localStorage.setItem("bloodlinkAppointmentsSeeded","1")}catch{}
-})();
+async function loadAppointments(){try{appts=await Api.get("/api/hospital/appointments")}catch(err){toast(err.message)}renderAppointments()}
 
 function apptStatusPill(s){const m={Pending:["pending","Pending"],Approved:["verified","Confirmed"],Completed:["matched","Completed"],Declined:["declined","Declined"],Cancelled:["stopped","Cancelled"]}[s]||["pending",s];return `<span class="status-pill ${m[0]}">${m[1]}</span>`}
 function apptEligPill(e){const s=e&&e.state;return s==="ok"?'<span class="status-pill fulfilled">Eligible</span>':s==="review"?'<span class="status-pill pending">Needs review</span>':'<span class="status-pill stopped">—</span>'}
@@ -611,18 +598,22 @@ function updateApptCapacity(){
  el.className="ap-cap"+(n>=APPT_CAPACITY?" warn":"");
  el.textContent=n===0?"No other donors are booked at this time.":n>=APPT_CAPACITY?`This slot is full (${n} donors already confirmed). Consider another time.`:`${n} other donor${n===1?" is":"s are"} already confirmed at this time.`;
 }
-function apptNextDvId(){return `DV-${new Date().getFullYear()}-${String(Math.max(0,...records.map(r=>Number(String(r.id).split("-").pop())||0))+1).padStart(3,"0")}`}
-function apptDecide(act){
+// Sends the hospital's decision to the server: PUT /api/hospital/appointments/{id}
+async function sendDecision(a,body){
+ try{const saved=await Api.put(`/api/hospital/appointments/${encodeURIComponent(a.id)}`,body);Object.assign(a,saved);return true}
+ catch(err){toast(err.message);return false}
+}
+async function apptDecide(act){
  const a=appts.find(x=>x.id===apptCurrent);if(!a)return;
- const now=new Date().toISOString(),t=apptToday();
+ const t=apptToday();
  if(act==="approve"){
   const d=$("apptConfDate").value,tm=$("apptConfTime").value;
   if(!d||!tm){toast("Please choose a date and time.");return}
   if(d<t){toast("The date can't be in the past.");return}
   if(apptIsFri(d)){toast("Fridays are closed. Please choose another day.");return}
   const wasPending=a.status==="Pending";
-  Object.assign(a,{status:"Approved",confirmedDate:d,confirmedTime:tm,hospitalNote:$("apptNote").value.trim(),declineReason:"",donorNotified:false,updatedAt:now});
-  apptSave();renderAppointments();closeAppointment();bloodBurst("#13895f");
+  if(!await sendDecision(a,{action:"approve",date:d,time:tm,note:$("apptNote").value.trim()}))return;
+  renderAppointments();closeAppointment();bloodBurst("#13895f");
   toast(`${wasPending?"Approved":"Updated"}. ${a.donor.name} will see ${apptDate(d)} at ${apptTime(tm)}.`);return;
  }
  if(act==="decline"||act==="cancel"){apptAction=act;renderApptDialog();$("apptReason")?.focus();return}
@@ -631,18 +622,14 @@ function apptDecide(act){
   const reason=($("apptReason")?.value||"").trim();
   if(reason.length<3){toast("Please write a short reason for the donor.");$("apptReason")?.focus();return}
   const declining=act==="decline-go";
-  Object.assign(a,{status:declining?"Declined":"Cancelled",declineReason:reason,cancelledBy:declining?a.cancelledBy:"hospital",donorNotified:false,updatedAt:now});
-  apptSave();renderAppointments();closeAppointment();toast(declining?`Request ${a.id} declined. The donor was notified.`:`Appointment ${a.id} cancelled. The donor was notified.`);return;
+  if(!await sendDecision(a,{action:declining?"decline":"cancel",reason}))return;
+  renderAppointments();closeAppointment();toast(declining?`Request ${a.id} declined. The donor was notified.`:`Appointment ${a.id} cancelled. The donor was notified.`);return;
  }
  if(act==="complete"){
-  const addStock=!!$("apptStock")?.checked,type=a.donor.type;
-  Object.assign(a,{status:"Completed",donorNotified:false,updatedAt:now});apptSave();
-  if(addStock){
-   const known=BLOOD_TYPES.includes(type);
-   if(known){inventory[type]=(Number(inventory[type])||0)+1;save("bloodlinkHospitalInventory",inventory);renderInventory()}
-   records.unshift({id:apptNextDvId(),donor:a.donor.name,recipient:"Blood bank stock",type:known?type:"—",units:1,date:a.confirmedDate||t,status:"Verified",notes:`Appointment ${a.id}`});
-   save("bloodlinkDonationRecords",records);renderRecords();
-  }
+  const addStock=!!$("apptStock")?.checked;
+  if(!await sendDecision(a,{action:"complete",addStock}))return;
+  // The server added a donation record (and maybe 1 unit of stock) — reload them.
+  loadDashboard();
   renderAppointments();closeAppointment();bloodBurst("#13895f");toast(`${a.donor.name}'s donation was completed${addStock?" and added to stock":""}.`);return;
  }
  if(act==="close")closeAppointment();
@@ -655,8 +642,8 @@ function initAppointments(){
  apptDlg.addEventListener("click",e=>{const b=e.target.closest("[data-appt-act]");if(b){apptDecide(b.dataset.apptAct);return}if(e.target===apptDlg)closeAppointment()});
  apptDlg.addEventListener("change",e=>{if(e.target.id==="apptConfDate"||e.target.id==="apptConfTime")updateApptCapacity()});
  apptDlg.addEventListener("close",()=>{apptCurrent=null;apptAction=null});
- window.addEventListener("storage",e=>{if(e.key===APPT_KEY){appts=read(APPT_KEY,[]);renderAppointments();if(apptDlg.open&&apptCurrent&&!apptAction)renderApptDialog()}});
  renderAppointments();
+ loadAppointments();
 }
 initAppointments();
 

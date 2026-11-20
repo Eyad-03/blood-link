@@ -57,11 +57,11 @@
 
  /* ---------- Details dialog ---------- */
  const dlg=$("adDialog");
+ // Count one view per ad per browser session — POST /api/ads/{id}/view
  function bumpViews(id){
   const k="bloodlinkAdSeen";let seen=[];try{seen=JSON.parse(sessionStorage.getItem(k)||"[]")}catch{}
   if(seen.includes(id))return;
-  const list=A.load(),ad=list.find(a=>a.id===id);if(!ad)return;
-  ad.views=(Number(ad.views)||0)+1;A.save(list);
+  fetch(`/api/ads/${encodeURIComponent(id)}/view`,{method:"POST"}).catch(()=>{});
   try{sessionStorage.setItem(k,JSON.stringify([...seen,id]))}catch{}
  }
  function openAd(id){
@@ -133,9 +133,10 @@
  document.addEventListener("click",e=>{const t=e.target.closest(".ad-more[data-ad], .spot[data-ad]");if(t&&!dlg.contains(t))openAd(t.dataset.ad)});
  $("adGrid").addEventListener("click",e=>{if(e.target.closest(".ad-more"))return;const card=e.target.closest("[data-ad-card]");if(card)openAd(card.dataset.adCard)});
  $("spotlight").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches(".spot")){e.preventDefault();openAd(e.target.dataset.ad)}});
- window.addEventListener("storage",e=>{if(e.key===A.KEY)refresh()});
+ window.addEventListener("bloodlink:ads",refresh);   // the ads arrived from the server
  window.addEventListener("hashchange",()=>{const id=decodeURIComponent(location.hash.slice(1));if(id)openAd(id)});
 
  refresh();
- const initial=decodeURIComponent(location.hash.slice(1));if(initial)openAd(initial);
+ // Load the ads, then open the one in the link (e.g. /Home/Ads#5) if any.
+ A.fetchPublic().then(()=>{const initial=decodeURIComponent(location.hash.slice(1));if(initial)openAd(initial)});
 })();

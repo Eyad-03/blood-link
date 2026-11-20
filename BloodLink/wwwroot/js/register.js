@@ -12,7 +12,7 @@
 
   /* ---------- Config: connect your backend here ---------- */
   const CONFIG = {
-    registerEndpoint: '',          // e.g. '/api/auth/register' — empty = demo mode
+    registerEndpoint: '/api/auth/register', // backend: Controllers/Api/AuthController.cs
     loginUrl: '/Account/Login',  // "Continue to sign in" target
     termsUrl: '',                  // e.g. '/Home/Terms'
     privacyUrl: '',                // e.g. '/Home/Privacy'

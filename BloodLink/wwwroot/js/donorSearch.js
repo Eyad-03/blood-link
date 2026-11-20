@@ -5,20 +5,17 @@
    matching and micro-interactions. No API key required.
 ========================================== */
 
-const sampleDonors = [
-    { id: 1, name: "Lina Khalil", city: "Irbid", area: "University Street", type: "O+", distance: 1.2, available: true, initials: "LK", lat: 32.5355, lng: 35.8515 },
-    { id: 2, name: "Omar Haddad", city: "Irbid", area: "Al-Hashmi", type: "A+", distance: 2.4, available: true, initials: "OH", lat: 32.5482, lng: 35.8578 },
-    { id: 3, name: "Sara Nasser", city: "Amman", area: "Khalda", type: "B+", distance: 6.1, available: false, initials: "SN", lat: 31.9952, lng: 35.8427 },
-    { id: 4, name: "Yazan Saleh", city: "Irbid", area: "Al-Barha", type: "O+", distance: 3.7, available: true, initials: "YS", lat: 32.5512, lng: 35.8394 },
-    { id: 5, name: "Maya Ibrahim", city: "Amman", area: "Shmeisani", type: "AB+", distance: 4.3, available: true, initials: "MI", lat: 31.9648, lng: 35.8967 },
-    { id: 6, name: "Adam Faris", city: "Zarqa", area: "New Zarqa", type: "A-", distance: 8.5, available: false, initials: "AF", lat: 32.0728, lng: 36.0942 },
-    { id: 7, name: "Noor Samir", city: "Irbid", area: "Al-Husun", type: "O-", distance: 5.4, available: true, initials: "NS", lat: 32.4851, lng: 35.8765 },
-    { id: 8, name: "Kareem Adel", city: "Amman", area: "Jubaiha", type: "B-", distance: 7.2, available: true, initials: "KA", lat: 32.0184, lng: 35.8721 },
-    { id: 9, name: "Hala Mahmoud", city: "Irbid", area: "Downtown", type: "AB-", distance: 1.8, available: false, initials: "HM", lat: 32.5556, lng: 35.8501 },
-    { id: 10, name: "Tareq Amin", city: "Amman", area: "Abdoun", type: "O+", distance: 9.1, available: true, initials: "TA", lat: 31.9498, lng: 35.8831 },
-    { id: 11, name: "Dana Rami", city: "Zarqa", area: "Prince Hasan", type: "A+", distance: 3.1, available: true, initials: "DR", lat: 32.0833, lng: 36.1056 },
-    { id: 12, name: "Zaid Fawzi", city: "Irbid", area: "Al-Naseem", type: "B+", distance: 2.9, available: true, initials: "ZF", lat: 32.5422, lng: 35.8664 }
-];
+/* Donors come from the backend: GET /api/donors (Controllers/Api/DonorsController.cs) */
+let sampleDonors = [];
+
+async function loadDonors() {
+    try {
+        sampleDonors = await Api.get("/api/donors");
+    } catch (err) {
+        sampleDonors = [];
+        showToast("Could not load donors: " + err.message, "info");
+    }
+}
 
 /* Red-cell compatibility: patient type -> donor types that can give to them */
 const COMPATIBLE_DONORS = {
@@ -843,8 +840,8 @@ function showModal(donor, isContact) {
 
       <p>
         ${isContact
-            ? "In the full app, verified contact options would appear here after the donor's consent."
-            : "This sample profile shows the donor's listed blood type, area, and self-reported availability."}
+            ? "Send a request first. The donor's phone and email appear on your Requests page after they accept."
+            : "This profile shows the donor's listed blood type, area, and self-reported availability."}
       </p>
 
       <fieldset class="priority-picker">
@@ -857,7 +854,7 @@ function showModal(donor, isContact) {
         <small class="priority-hint">Only you can set the priority. The donor will see it with your request.</small>
       </fieldset>
 
-      <div class="modal-warning">Demo profile only. No real contact details are available in preview mode.</div>
+      <div class="modal-warning">Contact details are shared only after the donor accepts your request.</div>
 
       <button class="modal-action" type="button"><span>Send Request</span></button>
     </section>`;
@@ -888,16 +885,21 @@ function showModal(donor, isContact) {
     modal.querySelector(".modal-close").addEventListener("click", close);
 
     const action = modal.querySelector(".modal-action");
-    action.addEventListener("click", () => {
+    action.addEventListener("click", async () => {
         if (action.classList.contains("sent")) return;
+        // Only signed-in recipients ("Need blood" accounts) can send a request.
+        const user = Api.getUser();
+        if (!Api.isLoggedIn() || !user) { showToast("Please sign in to send a request.", "info"); setTimeout(() => Api.requireLogin(), 900); return; }
+        if (user.role !== "Recipient") { showToast("Only \"Need blood\" accounts can send blood requests.", "info"); return; }
         const priority = modal.querySelector("input[name=requestPriority]:checked")?.value || "Normal";
-        const request = saveBloodRequest(donor, priority);
-        if (!request) { showToast("Could not save the request in this browser.", "info"); return; }
+        let request;
+        try { request = await saveBloodRequest(donor, priority); }
+        catch (err) { showToast(err.message, "info"); return; }
         action.classList.add("sent");
         modal.querySelectorAll("input[name=requestPriority]").forEach(input => { input.disabled = true; });
         action.querySelector("span").textContent = "Request sent ✓";
         burstHearts(action);
-        showToast(`${priority} request ${request.id} sent to ${donor.name}`, "love");
+        showToast(`${priority} request #${request.id} sent to ${donor.name}`, "love");
         setTimeout(close, 1100);
     });
 
@@ -908,58 +910,16 @@ function showModal(donor, isContact) {
 
 /* ==========================================
    SAVE REQUEST
-   Demo persistence (localStorage), shared with:
-   - /Recipient/Requests  (bloodlinkRecipientRequests)    -> what the requester sent
-   - /Donor/Requests      (bloodlinkDonorIncomingRequests) -> what the donor receives
-   Replace with an API call (POST /api/requests) when the backend is ready.
+   POST /api/requests (Controllers/Api/RequestsController.cs).
+   The request then shows on /Recipient/Requests (sender) and /Donor/Requests (donor).
 ========================================== */
 
-const RECIPIENT_REQUESTS_KEY = "bloodlinkRecipientRequests";
-const DONOR_REQUESTS_KEY = "bloodlinkDonorIncomingRequests";
 const PRIORITIES = ["Normal", "High", "Urgent"];
 
-function readList(key) {
-    try { const v = JSON.parse(localStorage.getItem(key) || "[]"); return Array.isArray(v) ? v : []; }
-    catch { return []; }
-}
-
-function nextRequestId(lists) {
-    const year = new Date().getFullYear();
-    const nums = lists.flat().map(r => Number(String(r.id || "").split("-").pop()) || 0);
-    return `BR-${year}-${String(Math.max(220, ...nums) + 1).padStart(4, "0")}`;
-}
-
-function saveBloodRequest(donor, priority) {
+async function saveBloodRequest(donor, priority) {
     if (!PRIORITIES.includes(priority)) priority = "Normal";
-    const sent = readList(RECIPIENT_REQUESTS_KEY);
-    const incoming = readList(DONOR_REQUESTS_KEY);
-    const now = new Date();
-    const id = nextRequestId([sent, incoming]);
-    const sentAt = `Today, ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
     const neededType = bloodType && bloodType.value ? bloodType.value : donor.type;
-    const location = `${donor.area}, ${donor.city}`;
-    const distance = `${donor.distance} km away`;
-
-    // Requester side (the person who needs blood).
-    sent.unshift({
-        id, donorName: donor.name, donorInitials: donor.initials, bloodType: neededType,
-        location, distance, sentAt, dateValue: now.toISOString(), status: "Pending",
-        priority, units: 1, message: "", donorPhone: "", donorEmail: ""
-    });
-
-    // Donor side: the donor sees the priority but cannot change it.
-    incoming.unshift({
-        id, recipientName: "Guest requester", initials: "G", bloodType: neededType,
-        location, distance, sentAt, dateValue: now.toISOString(), status: "Pending",
-        priority, units: 1, hospital: "", message: "",
-        recipientPhone: "", recipientEmail: ""
-    });
-
-    try {
-        localStorage.setItem(RECIPIENT_REQUESTS_KEY, JSON.stringify(sent));
-        localStorage.setItem(DONOR_REQUESTS_KEY, JSON.stringify(incoming));
-    } catch { return null; }
-    return { id, priority };
+    return await Api.post("/api/requests", { donorId: donor.id, bloodType: neededType, priority });
 }
 
 /* Little hearts that float up from a button */
@@ -1331,8 +1291,12 @@ function initScrollEffects() {
 initRadar();
 initBloodCells();
 initHeartbeat();
-initStats();
 initScrollEffects();
 initDonorMap();
 renderCompatPanel();
-renderDonors();
+
+// Load the donors from the server, then show them.
+loadDonors().then(() => {
+    initStats();
+    renderDonors();
+});

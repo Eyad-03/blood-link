@@ -988,7 +988,9 @@
     }
 
     render();
-    window.addEventListener('storage', (e) => { if (!A.KEY || e.key === A.KEY) render(); });
+    // Load the ads from the server, then show them (ads-data.js fires "bloodlink:ads").
+    window.addEventListener('bloodlink:ads', render);
+    if (typeof A.fetchPublic === 'function') A.fetchPublic();
   }
 
   initHero();

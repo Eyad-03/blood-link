@@ -332,11 +332,13 @@ namespace BloodLink.Data.Migrations
                     b.Property<int>("DonationCount")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("SentAt")
+                    b.Property<DateTime>("IssuedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SentAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("SentToEmail")
-                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
@@ -431,6 +433,10 @@ namespace BloodLink.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("CancelledBy")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateOnly?>("ConfirmedDate")
                         .HasColumnType("date");
@@ -572,7 +578,7 @@ namespace BloodLink.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
-                    b.Property<int>("OrganizationId")
+                    b.Property<int?>("OrganizationId")
                         .HasColumnType("int");
 
                     b.Property<string>("RecipientName")
@@ -1235,6 +1241,13 @@ namespace BloodLink.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("SuspendReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("SuspendedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
@@ -1392,8 +1405,7 @@ namespace BloodLink.Data.Migrations
                     b.HasOne("BloodLink.Models.Entities.Organization", "Organization")
                         .WithMany("DonationRecords")
                         .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Appointment");
 

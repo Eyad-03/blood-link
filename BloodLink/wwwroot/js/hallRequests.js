@@ -1,5 +1,8 @@
 const $ = id => document.getElementById(id);
-const STORAGE_KEY = "mubadartiHallRequests";
+Api.requireLogin();
+
+/* My booking requests — GET /api/halls/bookings/mine (Controllers/Api/HallsController.cs) */
+let myRequests = [];
 let activeFilter = "All";
 let selectedRequestId = null;
 
@@ -13,11 +16,10 @@ const dateLabel = value => {
   return Number.isNaN(date.getTime()) ? String(value) :
     date.toLocaleDateString(undefined, {year:"numeric", month:"short", day:"numeric"});
 };
-function readRequests() {
-  try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    return Array.isArray(data) ? data : [];
-  } catch { return []; }
+function readRequests() { return myRequests; }
+async function loadRequests() {
+  try { myRequests = await Api.get("/api/halls/bookings/mine"); } catch { myRequests = []; }
+  renderRequests();
 }
 function statusClass(status) {
   return ({ "Pending approval":"pending", "Approved":"approved", "Paid":"paid", "Rejected":"rejected" })[status] || "pending";
@@ -146,8 +148,6 @@ $("detailsModal").addEventListener("click", event => {
 document.addEventListener("keydown", event => {
   if (event.key === "Escape") document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach(m => closeModal(m.id));
 });
-window.addEventListener("storage", event => {
-  if (event.key === STORAGE_KEY || event.key === null) renderRequests();
-});
-window.addEventListener("focus", renderRequests);
+window.addEventListener("focus", loadRequests);   // refresh when the user comes back to the tab
 renderRequests();
+loadRequests();

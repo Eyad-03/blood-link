@@ -11,7 +11,7 @@
 
   /* ---------- Config: connect your backend here ---------- */
   const CONFIG = {
-    loginEndpoint: '',               // e.g. '/api/auth/login' — empty = demo mode
+    loginEndpoint: '/api/auth/login', // backend: Controllers/Api/AuthController.cs
     redirectTo: '/',   // where to go after a successful sign-in
     resetUrl: '',                    // e.g. '/Account/ForgotPassword'
     beatMs: 1600                     // keep in sync with --beat in login.css
@@ -368,12 +368,17 @@
           remember.checked ? localStorage.setItem(STORE_KEY, email.value.trim()) : localStorage.removeItem(STORE_KEY);
         } catch (_) {}
         setState('success');
+        // Keep the JWT token so every page can call the API (see api.js).
+        if (!result.demo && window.Api) Api.saveLogin(result.token, result.user);
         if (result.demo) {
           message.textContent = 'Demo mode: set loginEndpoint in login.js to sign in for real.';
           setTimeout(() => { setState('idle'); busy = false; }, 2400);
         } else {
           message.textContent = 'Welcome back! Taking you in…';
-          setTimeout(() => { window.location.href = result.redirect || CONFIG.redirectTo; }, 900);
+          // Go back to the page that asked for a login (?returnUrl=...) or to the user's home page.
+          const returnUrl = new URLSearchParams(location.search).get('returnUrl');
+          const target = returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//') ? returnUrl : (result.redirect || CONFIG.redirectTo);
+          setTimeout(() => { window.location.href = target; }, 900);
         }
       } catch (err) {
         setState('idle');
