@@ -5,7 +5,6 @@ Api.requireLogin(["Recipient"]);
 let requests = [];
 let activeFilter = "All";
 let selectedRequestId = null;
-let contactRequestId = null;
 BloodChat.init({ me: "recipient" });
 
 function escapeHTML(value) { return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
@@ -67,22 +66,12 @@ function openContact(id) {
     const r = readRequests().find(x => x.id === id);
     if (!r) return;
     if (r.status !== "Accepted") { showToast("Contact details are available after the donor accepts your request."); return; }
-    contactRequestId = id;
     $("contactAvatar").textContent = r.donorInitials || r.donorName.split(" ").map(n => n[0]).join("").slice(0, 2);
     $("contactTitle").textContent = r.donorName;
     $("contactSubtitle").textContent = "The donor accepted your request. You can use the details below to coordinate safely.";
     $("contactEmail").textContent = r.donorEmail || "Not provided";
     $("contactPhone").textContent = r.donorPhone || "Not provided";
     $("contactLocation").textContent = r.location || "Not provided";
-    const emailBtn = $("emailDonorBtn"), callBtn = $("callDonorBtn");
-    if (r.donorEmail) {
-        emailBtn.href = "mailto:" + r.donorEmail + "?subject=" + encodeURIComponent("Blood donation request " + r.id);
-        emailBtn.classList.remove("hidden");
-    } else { emailBtn.removeAttribute("href"); emailBtn.classList.add("hidden"); }
-    if (r.donorPhone) {
-        callBtn.href = "tel:" + r.donorPhone.replace(/[^\d+]/g, "");
-        callBtn.classList.remove("hidden");
-    } else { callBtn.removeAttribute("href"); callBtn.classList.add("hidden"); }
     $("contactModal").classList.remove("hidden");
     document.body.style.overflow = "hidden";
 }
@@ -104,7 +93,6 @@ function openChat(id) {
     closeModal("detailsModal"); closeModal("contactModal");
     BloodChat.open(r.id, { name: r.donorName, initials: (r.donorInitials || r.donorName.split(" ").map(n => n[0]).join("").slice(0, 2)), sub: `Blood donor · ${r.location}`, meta: [["Request", r.id], ["Blood", r.bloodType], ["Distance", r.distance]], readOnly: r.status === "Completed" });
 }
-$("chatDonorBtn").addEventListener("click", () => contactRequestId && openChat(contactRequestId));
 function closeModal(id) { $(id).classList.add("hidden"); document.body.style.overflow = ""; }
 document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => { activeFilter = tab.dataset.filter; renderRequests(); }));
 $("searchInput").addEventListener("input", renderRequests);
