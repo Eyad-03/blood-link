@@ -593,7 +593,7 @@
     const first = name.split(/\s+/)[0];
     $('#successTitle').textContent = `Welcome to BloodLink, ${first}!`;
     $('#successText').textContent = SUCCESS_TEXT[r] || SUCCESS_TEXT.donor;
-    $('#successNote').textContent = result.demo ? 'Demo mode: set registerEndpoint in register.js to create real accounts.' : '';
+    $('#successNote').textContent = result.demo ? 'Demo mode: set registerEndpoint in register.js to create real accounts.' : 'Taking you to your account…';
     const cta = $('.success-cta', els.success);
     if (cta) cta.href = result.redirect || CONFIG.loginUrl;
 
@@ -637,6 +637,14 @@
     try {
       const result = await signUp(payload);
       setLoading(false);
+      // The server signs the new user in: keep the token, then open their page
+      // (hospital → /Hospital, where the verification window asks for the documents).
+      if (!result.demo && result.token && window.Api) {
+        Api.saveLogin(result.token, result.user);
+        const label = $('.success-cta .button-label', els.success);
+        if (label) label.textContent = 'Continue to my account';
+        setTimeout(() => { window.location.href = result.redirect || '/'; }, 2200);
+      }
       showSuccess(result, r, name);
     } catch (err) {
       setLoading(false);

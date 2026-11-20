@@ -77,7 +77,8 @@ namespace BloodLink.Controllers.Api
             db.Users.Add(user);
             db.SaveChanges();
 
-            return Ok(new { message = "Account created.", redirect = "/Account/Login" });
+            // Sign the new user in straight away (same answer as /login).
+            return Ok(LoginResult(user));
         }
 
         [HttpPost("login")]
@@ -99,12 +100,18 @@ namespace BloodLink.Controllers.Api
             user.LastActiveAt = DateTime.UtcNow;
             db.SaveChanges();
 
-            return Ok(new
+            return Ok(LoginResult(user));
+        }
+
+        // What the browser gets after login or register: the JWT token, the user and the page to open.
+        private object LoginResult(User user)
+        {
+            return new
             {
                 token = JwtHelper.CreateToken(user, config),
                 redirect = HomePageFor(user.Role),
                 user = new { id = user.Id, name = user.FullName, email = user.Email, role = user.Role.ToString() }
-            });
+            };
         }
 
         // Who am I? (used by the pages to check the token is still valid)
