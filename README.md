@@ -96,6 +96,14 @@ The JWT settings are in `appsettings.json` → `Jwt`. Change `Jwt:Key` to your o
 | Anyone | Report an issue | `POST /api/reports` |
 | Admin | Verify hospitals, suspend users, bookings, reports | `/api/admin/...` |
 
+### Rest period after a donation
+
+When a donation is recorded (request completed, appointment completed, hospital record, or added on the
+profile page) the donor becomes **not available** and `Users.AvailableAgainOn` = donation date + 3 months.
+While resting the donor can't switch back on, accept requests, receive new requests or book an appointment.
+`DonorReactivationService` (in `Helpers/DonationRules.cs`) runs when the app starts and every hour,
+and turns donors back on when their date arrives.
+
 ### Navbar per role
 
 `wwwroot/js/nav.js` builds the top links and the profile menu from the signed-in role

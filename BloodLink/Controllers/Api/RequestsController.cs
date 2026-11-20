@@ -26,6 +26,7 @@ namespace BloodLink.Controllers.Api
             var me = CurrentUser()!;
             var donor = db.Users.FirstOrDefault(u => u.Id == dto.DonorId && u.Role == UserRole.Donor);
             if (donor == null) return NotFound(new { message = "Donor not found." });
+            if (!donor.IsAvailable) return BadRequest(new { message = "This donor is not available right now. Please choose another donor." });
 
             var bloodType = Format.ParseBlood(dto.BloodType) ?? me.BloodType ?? donor.BloodType;
             if (bloodType == null) return BadRequest(new { message = "Please choose the blood type you need." });
@@ -137,6 +138,8 @@ namespace BloodLink.Controllers.Api
                 if (!iAmDonor) return Forbid();
                 if (request.Status != BloodRequestStatus.Pending)
                     return BadRequest(new { message = "This request was already answered." });
+                if (dto.Status == "Accepted" && DonationRules.IsResting(request.Donor))
+                    return BadRequest(new { message = $"You donated recently. You can accept requests again from {request.Donor.AvailableAgainOn!.Value:dd MMM yyyy}." });
                 if (dto.Status == "Accepted" && !request.Donor.IsAvailable)
                     return BadRequest(new { message = "Turn on your availability before accepting a request." });
 
@@ -170,7 +173,8 @@ namespace BloodLink.Controllers.Api
                     BloodRequestId = request.Id,
                     Notes = "Blood request #" + request.Id
                 });
-                request.Donor.LastDonationDate = DateOnly.FromDateTime(DateTime.Now);
+                // The donor rests for 3 months now (not available until then).
+                DonationRules.MarkDonated(request.Donor, DateOnly.FromDateTime(DateTime.Now));
             }
             else
             {

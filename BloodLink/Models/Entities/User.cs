@@ -46,6 +46,10 @@ namespace BloodLink.Models.Entities
 
         public DateOnly? LastDonationDate { get; set; }
 
+        // After a donation the donor rests for 3 months (IsAvailable = false).
+        // On this date the background service turns IsAvailable back on (see Helpers/DonationRules.cs).
+        public DateOnly? AvailableAgainOn { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LastActiveAt { get; set; }
 

@@ -54,6 +54,9 @@ namespace BloodLink.Controllers.Api
         public IActionResult SetAvailability(AvailabilityDto dto)
         {
             var me = CurrentUser()!;
+            // During the 3 months after a donation the donor can't switch back on.
+            if (dto.Available && DonationRules.IsResting(me))
+                return BadRequest(new { message = $"You donated recently. You will be available again on {me.AvailableAgainOn!.Value:dd MMM yyyy}." });
             me.IsAvailable = dto.Available;
             db.SaveChanges();
             return Ok(new { available = me.IsAvailable });
@@ -78,7 +81,7 @@ namespace BloodLink.Controllers.Api
             me.BloodType = type;
             me.Phone = dto.Phone.Trim();
             me.PreferredContactMethod = dto.ContactMethod;
-            me.IsAvailable = true;
+            me.IsAvailable = !DonationRules.IsResting(me);   // stays off while resting after a donation
             me.ShareLocation = dto.ShareExactLocation && dto.Latitude != null && dto.Longitude != null;
             me.Latitude = me.ShareLocation ? dto.Latitude : null;
             me.Longitude = me.ShareLocation ? dto.Longitude : null;
@@ -91,6 +94,8 @@ namespace BloodLink.Controllers.Api
         public IActionResult AddDonation()
         {
             var me = CurrentUser()!;
+            if (DonationRules.IsResting(me))
+                return BadRequest(new { message = $"You donated recently. You can donate again from {me.AvailableAgainOn!.Value:dd MMM yyyy}." });
             if (!me.IsAvailable) return BadRequest(new { message = "Switch your status to “Available” first." });
 
             var today = DateOnly.FromDateTime(DateTime.Now);
@@ -105,7 +110,7 @@ namespace BloodLink.Controllers.Api
                 DonationDate = today,
                 Status = DonationRecordStatus.PendingVerification
             });
-            me.LastDonationDate = today;
+            DonationRules.MarkDonated(me, today);   // now not available for 3 months
             db.SaveChanges();
             return Ok(ProfileJson(me));
         }
@@ -122,6 +127,8 @@ namespace BloodLink.Controllers.Api
             if (last == null) return BadRequest(new { message = "There is no donation you can undo." });
 
             db.DonationRecords.Remove(last);
+            db.SaveChanges();
+            DonationRules.Recalculate(me, db);   // maybe the donor is available again
             db.SaveChanges();
             return Ok(ProfileJson(me));
         }
@@ -183,6 +190,7 @@ namespace BloodLink.Controllers.Api
                 role = me.Role.ToString(),
                 bloodType = Format.Blood(me.BloodType),
                 available = me.IsAvailable,
+                availableAgainOn = Format.Date(me.AvailableAgainOn),   // "" when not resting
                 donations,
                 certificate = cert == null ? null : new
                 {

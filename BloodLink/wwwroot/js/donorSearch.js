@@ -834,7 +834,7 @@ function showModal(donor, isContact) {
         <div>
           <strong>${escapeHTML(donor.name)}</strong>
           <small>${escapeHTML(donor.type)} blood type · ${escapeHTML(donor.area)}, ${escapeHTML(donor.city)}</small>
-          <small class="modal-status ${donor.available ? "ok" : ""}">${donor.available ? "● Available (self-reported)" : "○ Not currently available"}</small>
+          <small class="modal-status ${donor.available ? "ok" : ""}">${donor.available ? "● Available (self-reported)" : donor.availableAgainOn ? `○ Resting after a donation · available again ${new Date(donor.availableAgainOn + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "○ Not currently available"}</small>
         </div>
       </div>
 

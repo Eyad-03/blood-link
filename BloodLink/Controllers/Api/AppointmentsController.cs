@@ -69,6 +69,11 @@ namespace BloodLink.Controllers.Api
             if (date.Value.DayOfWeek == DayOfWeek.Friday) return BadRequest(new { message = "Centers are closed on Fridays." });
             if (dto.Eligibility.State == "blocked") return BadRequest(new { message = "You are not eligible to donate right now." });
 
+            // Still resting after the last donation?
+            var donorUser = CurrentUser()!;
+            if (donorUser.AvailableAgainOn != null && date < donorUser.AvailableAgainOn)
+                return BadRequest(new { message = $"You donated recently. You can book from {donorUser.AvailableAgainOn.Value:dd MMM yyyy}." });
+
             var e = dto.Eligibility;
             var appointment = new DonationAppointment
             {

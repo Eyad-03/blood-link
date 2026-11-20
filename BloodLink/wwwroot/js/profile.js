@@ -25,7 +25,7 @@
   // Takes the JSON from the server and redraws the page.
   function applyServerData(data, animate) {
     profile = { name: data.name, email: data.email, phone: data.phone, location: data.location, bloodType: data.bloodType };
-    donor = { available: data.available, donations: data.donations || [], certificate: data.certificate };
+    donor = { available: data.available, availableAgainOn: data.availableAgainOn, donations: data.donations || [], certificate: data.certificate };
     renderProfile();
     renderDonor(!!animate);
     // Tell the hero section at the bottom of this file.
@@ -151,7 +151,9 @@
     var sw = $('availabilityToggle');
     sw.setAttribute('aria-checked', String(on));
     $('donorStatusText').textContent = on ? 'Available' : 'Unavailable';
-    $('donorStatusHint').textContent = on
+    $('donorStatusHint').textContent = donor.availableAgainOn
+      ? 'You donated recently. You will be available again on ' + fmtDate(donor.availableAgainOn + 'T12:00:00') + ' (3 months rest).'
+      : on
       ? 'Blood is flowing. You can be contacted and record donations.'
       : 'Blood flow is stopped. Switch on to become available.';
     $('addDonation').disabled = !on;

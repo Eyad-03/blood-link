@@ -78,10 +78,13 @@ function closeModal(id) { $(id).classList.add("hidden"); document.body.style.ove
 // PUT /api/requests/{id}/status — the server also adds the "accepted" / "completed" note in the chat.
 async function updateStatus(id, status) {
     const r = readRequests().find(x => x.id === id); if (!r) return;
+    if (status === "Accepted" && availableAgainOn) { toast(`You donated recently. You can accept requests again from ${niceDate(availableAgainOn)}.`); return; }
     if (status === "Accepted" && !$("availabilityToggle").checked) { toast("Turn on your availability before accepting a request."); return; }
     try { await Api.put(`/api/requests/${encodeURIComponent(id)}/status`, { status }); }
     catch (err) { toast(err.message); return; }
     closeModal("detailsModal"); await loadRequests();
+    // Completing a donation starts the 3-month rest → read my availability again.
+    if (status === "Completed") Api.get("/api/profile").then(p => { availableAgainOn = p.availableAgainOn || ""; $("availabilityToggle").checked = !!p.available; renderAvailability(); }).catch(() => { });
     toast(status === "Accepted" ? "Request accepted. Coordinate through the hospital." : status === "Declined" ? "Request declined." : "Donation marked as completed.");
 }
 document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => { activeFilter = tab.dataset.filter; renderRequests(); }));
@@ -103,10 +106,15 @@ $("chatDetailBtn").addEventListener("click", () => selectedRequestId && openChat
 document.querySelectorAll("[data-close]").forEach(btn => btn.addEventListener("click", () => closeModal(btn.dataset.close)));
 $("detailsModal").addEventListener("click", e => { if (e.target === $("detailsModal")) closeModal("detailsModal"); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach(m => closeModal(m.id)); });
-/* Availability is saved on the server (PUT /api/profile/availability). */
+/* Availability is saved on the server (PUT /api/profile/availability).
+   After a donation the donor rests for 3 months: the switch is locked until "availableAgainOn". */
+let availableAgainOn = "";
+function niceDate(ymd) { return new Date(ymd + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
 function renderAvailability() {
     const available = $("availabilityToggle").checked;
-    $("availabilityText").textContent = available ? "Available to donate" : "Not available right now";
+    $("availabilityToggle").disabled = !!availableAgainOn;
+    $("availabilityText").textContent = availableAgainOn ? `Resting after your donation · available again on ${niceDate(availableAgainOn)}`
+        : available ? "Available to donate" : "Not available right now";
     $("availabilityToggle").closest(".availability").classList.toggle("unavailable", !available);
 }
 $("availabilityToggle").addEventListener("change", async () => {
@@ -121,7 +129,7 @@ $("availabilityToggle").addEventListener("change", async () => {
 });
 
 // Start: read my availability and my requests from the server.
-Api.get("/api/profile").then(p => { $("availabilityToggle").checked = !!p.available; renderAvailability(); }).catch(() => { });
+Api.get("/api/profile").then(p => { availableAgainOn = p.availableAgainOn || ""; $("availabilityToggle").checked = !!p.available; renderAvailability(); }).catch(() => { });
 renderAvailability();
 renderRequests();
 loadRequests();

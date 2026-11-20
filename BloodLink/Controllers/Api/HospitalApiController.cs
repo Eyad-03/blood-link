@@ -94,7 +94,7 @@ namespace BloodLink.Controllers.Api
                 Notes = dto.Notes
             };
             db.DonationRecords.Add(record);
-            if (donorUser != null) donorUser.LastDonationDate = date.Value;
+            if (donorUser != null) DonationRules.MarkDonated(donorUser, date.Value);   // donor rests for 3 months
             db.SaveChanges();
             return Ok(RecordJson(record));
         }
@@ -139,7 +139,8 @@ namespace BloodLink.Controllers.Api
                 type = Format.Blood(d.BloodType),
                 location = string.Join(", ", new[] { d.Area, d.City }.Where(x => !string.IsNullOrEmpty(x))),
                 last = d.LastDonationDate == null ? "—" : d.LastDonationDate.Value.ToString("dd MMM yyyy"),
-                availability = d.IsAvailable ? "Available" : "Not active"
+                availability = d.IsAvailable ? "Available" : "Not active",
+                availableAgainOn = Format.Date(d.AvailableAgainOn)
             }));
         }
 
@@ -195,7 +196,7 @@ namespace BloodLink.Controllers.Api
 
                 // Always count the donation for the donor (profile page).
                 var donor = db.Users.Find(a.DonorId);
-                if (donor != null) donor.LastDonationDate = donationDate;
+                if (donor != null) DonationRules.MarkDonated(donor, donationDate);   // donor rests for 3 months
 
                 db.DonationRecords.Add(new DonationRecord
                 {

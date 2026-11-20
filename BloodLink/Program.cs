@@ -1,5 +1,6 @@
 using System.Text;
 using BloodLink.Data;
+using BloodLink.Helpers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -31,6 +32,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
+
+// Turns donors back on 3 months after their donation (Helpers/DonationRules.cs).
+builder.Services.AddHostedService<DonorReactivationService>();
 
 var app = builder.Build();
 

@@ -46,6 +46,7 @@ namespace BloodLink.Controllers.Api
                     type = Format.Blood(d.BloodType),
                     distance = Format.DistanceKm(from.Lat, from.Lng, lat, lng),
                     available = d.IsAvailable,
+                    availableAgainOn = Format.Date(d.AvailableAgainOn),
                     initials = Format.Initials(d.FullName),
                     lat,
                     lng

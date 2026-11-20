@@ -1176,6 +1176,9 @@ namespace BloodLink.Data.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<DateOnly?>("AvailableAgainOn")
+                        .HasColumnType("date");
+
                     b.Property<string>("BloodType")
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");

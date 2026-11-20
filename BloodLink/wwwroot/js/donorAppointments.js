@@ -9,7 +9,8 @@
 const $ = id => document.getElementById(id);
 Api.requireLogin(["Donor"]);
 const DRAFT_KEY = "bloodlinkDonorProfileDraft";
-const MIN_WEIGHT = 50, MIN_AGE = 18, MAX_AGE = 65, WAIT_DAYS = 56, BOOK_AHEAD_DAYS = 60;
+const MIN_WEIGHT = 50, MIN_AGE = 18, MAX_AGE = 65, BOOK_AHEAD_DAYS = 60;
+const WAIT_DAYS = 90;   // ~3 months rest after a donation (the server uses the same rule)
 
 /* Verified hospitals / centers — loaded from GET /api/facilities */
 let FACILITIES = [];
