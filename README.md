@@ -40,7 +40,7 @@ BloodLink/
   Helpers/          JWT token + small formatting helpers
   wwwroot/
     css/            the original stylesheets, unchanged
-    js/             page scripts; api.js is the shared helper that calls the API
+    js/             page scripts; api.js calls the API, nav.js builds the navbar for each role
     images/
   Program.cs
 ```
@@ -95,6 +95,12 @@ The JWT settings are in `appsettings.json` → `Jwt`. Change `Jwt:Key` to your o
 | Anyone signed in | Book a hall → admin approves → pay | `/api/halls/...`, `/api/admin/bookings/{id}` |
 | Anyone | Report an issue | `POST /api/reports` |
 | Admin | Verify hospitals, suspend users, bookings, reports | `/api/admin/...` |
+
+### Navbar per role
+
+`wwwroot/js/nav.js` builds the top links and the profile menu from the signed-in role
+(Guest, Donor, Recipient, Hospital, Admin). To change a link, edit the `NAV` object at the top of that file.
+If a user opens a page of another role, `Api.requireLogin([...])` sends them to their own home page.
 
 A new hospital account can sign in only after the admin ticks its 3 documents and activates it.
 

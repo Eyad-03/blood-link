@@ -13,6 +13,8 @@
 (function () {
   const TOKEN_KEY = "bloodlinkToken";
   const USER_KEY = "bloodlinkUser";
+  // The first page of each role (same as AuthController.HomePageFor).
+  const HOME_PAGES = { Donor: "/Donor/Requests", Recipient: "/Donor/Search", Hospital: "/Hospital", Admin: "/Admin" };
 
   function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } }
   function getUser() { try { return JSON.parse(localStorage.getItem(USER_KEY) || "null"); } catch { return null; } }
@@ -62,8 +64,8 @@
     const user = getUser();
     if (!getToken() || !user) { goToLogin(); return false; }
     if (roles && roles.length && !roles.includes(user.role)) {
-      alert("This page is for " + roles.join(" / ") + " accounts. You are signed in as " + user.role + ".");
-      window.location.href = "/";
+      // This page belongs to another role → go to my own home page.
+      window.location.href = HOME_PAGES[user.role] || "/";
       return false;
     }
     return true;
