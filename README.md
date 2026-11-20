@@ -110,10 +110,21 @@ and turns donors back on when their date arrives.
 (Guest, Donor, Recipient, Hospital, Admin). To change a link, edit the `NAV` object at the top of that file.
 If a user opens a page of another role, `Api.requireLogin([...])` sends them to their own home page.
 
-A new hospital account can sign in only after the admin ticks its 3 documents and activates it.
+### New hospital accounts
+
+1. The hospital registers and signs in straight away.
+2. `/Hospital` shows a verification window (`hospital-onboarding.js`) that can't be closed:
+   upload the 3 documents (PDF / JPG / PNG, max 10 MB) → **Send for review**.
+3. The admin opens the files in Admin → Accounts, ticks them and activates the account
+   (or rejects it with a reason — the hospital then uploads again).
+4. The window closes by itself and the dashboard works normally.
+
+Files are saved in `App_Data/uploads` (not public; only the admin API sends them back).
+Dashboard APIs use `[ActiveHospital]` (`Helpers/ActiveHospitalAttribute.cs`) so they only work after approval.
 
 ### Not included yet
 
-- Uploaded files (hall documents, report attachments) — only the file names are saved.
+- Uploaded files for hall bookings and report attachments — only the file names are saved
+  (hospital verification documents ARE uploaded).
 - Real emails for the certificate — `POST /api/send-certificate` only records who it was sent to.
 - Payments are demo payments — only the payment method is saved.

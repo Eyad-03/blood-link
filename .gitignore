@@ -20,3 +20,6 @@ publish/
 appsettings.*.local.json
 .idea/
 .vscode/
+
+# Files uploaded by hospitals (verification documents)
+App_Data/

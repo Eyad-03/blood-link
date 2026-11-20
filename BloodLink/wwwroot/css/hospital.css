@@ -681,3 +681,93 @@ a.record-action{display:inline-block}
 
 .ap-decide label:has(.field-hint){grid-template-columns:auto 1fr;align-items:center}
 .ap-decide label:has(.field-hint)>textarea{grid-column:1/-1}
+/* =====================================================================
+   Institution verification window (hospital-onboarding.js)
+   ===================================================================== */
+body.onb-open{overflow:hidden}
+.onb-backdrop{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:18px;
+  background:rgba(19,20,30,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:onbFade .3s var(--ease)}
+.onb-backdrop[hidden]{display:none}
+.onb-modal{width:min(600px,100%);max-height:calc(100vh - 36px);overflow:auto;background:var(--card);border-radius:24px;
+  padding:28px;box-shadow:0 30px 80px rgba(20,18,40,.28);display:grid;gap:20px;animation:onbRise .45s var(--spring)}
+.onb-head{display:flex;gap:16px;align-items:flex-start}
+.onb-head h2{margin:4px 0 6px;font:800 24px/1.2 Manrope,"DM Sans",sans-serif;letter-spacing:-.6px}
+.onb-head p{margin:0;color:var(--muted);font-size:13.5px}
+.onb-icon{flex:0 0 auto;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
+  background:linear-gradient(145deg,var(--red-2),var(--red-dark));box-shadow:var(--shadow-red)}
+.onb-icon svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+/* step indicator */
+.onb-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.onb-steps li{display:flex;align-items:center;gap:8px;padding:10px;border-radius:12px;background:#f7f6fa;
+  color:var(--faint);font-size:11.5px;font-weight:700;line-height:1.25}
+.onb-steps b{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;
+  background:#fff;border:1.5px solid var(--line);color:var(--faint)}
+.onb-steps li.done{color:var(--green);background:var(--green-soft)}
+.onb-steps li.done b{background:var(--green);border-color:var(--green);color:#fff}
+.onb-steps li.current{color:var(--red);background:var(--red-soft)}
+.onb-steps li.current b{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 0 0 4px rgba(212,29,61,.15)}
+
+/* rejected banner */
+.onb-rejected{padding:14px 16px;border-radius:14px;background:var(--red-soft);border:1px solid var(--red-line);color:var(--red-dark)}
+.onb-rejected[hidden]{display:none}
+.onb-rejected b{display:block;font-size:13.5px}
+.onb-rejected p{margin:4px 0;font-size:13px;color:var(--ink-2)}
+.onb-rejected small{color:var(--muted);font-size:12px}
+
+/* documents */
+.onb-body{display:grid;gap:14px}
+.onb-body[hidden]{display:none}
+.onb-docs{display:grid;gap:10px}
+.onb-doc{display:flex;align-items:center;gap:14px;padding:14px;border:1.5px dashed var(--line);border-radius:16px;
+  transition:border-color .25s,background .25s}
+.onb-doc:hover{border-color:var(--red-line);background:#fffafb}
+.onb-doc.uploaded{border-style:solid;border-color:#bfe8d6;background:var(--green-soft)}
+.onb-doc.uploading{opacity:.65}
+.onb-doc-ic{flex:0 0 auto;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--red-soft)}
+.onb-doc-ic svg{width:21px;height:21px;fill:none;stroke:var(--red);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.onb-doc.uploaded .onb-doc-ic{background:var(--green)}
+.onb-doc.uploaded .onb-doc-ic svg{stroke:#fff;stroke-width:2.4}
+.onb-doc-text{flex:1;min-width:0}
+.onb-doc-text b{display:block;font-size:13.5px}
+.onb-doc-text small{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.onb-pick{flex:0 0 auto;cursor:pointer;padding:9px 14px;border-radius:10px;font-size:12.5px;font-weight:800;
+  color:var(--red);background:#fff;border:1px solid var(--red-line);transition:background .2s,transform .2s}
+.onb-pick:hover{background:var(--red-soft);transform:translateY(-1px)}
+.onb-doc.uploaded .onb-pick{color:var(--green);border-color:#bfe8d6}
+
+.onb-progress{height:6px;border-radius:6px;background:#f0eef4;overflow:hidden}
+.onb-progress span{display:block;height:100%;width:0;border-radius:6px;
+  background:linear-gradient(90deg,var(--red-2),var(--red));transition:width .5s var(--ease)}
+.onb-hint{margin:-4px 0 0;color:var(--muted);font-size:12px}
+.onb-error{margin:0;padding:10px 12px;border-radius:10px;background:var(--red-soft);color:var(--red-dark);font-size:12.5px;font-weight:600}
+.onb-error[hidden]{display:none}
+.onb-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px}
+.onb-actions .primary-button[disabled]{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+
+/* waiting */
+.onb-wait{text-align:center;padding:8px 10px 0;display:grid;justify-items:center;gap:6px}
+.onb-wait b{font:800 18px Manrope,"DM Sans",sans-serif}
+.onb-wait p{margin:0;max-width:430px;color:var(--muted);font-size:13px}
+.onb-pulse{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;margin-bottom:6px;
+  background:var(--amber-soft);animation:onbPulse 2s ease-in-out infinite}
+.onb-pulse svg{width:30px;height:30px;fill:none;stroke:var(--amber);stroke-width:1.9;stroke-linecap:round}
+.onb-sent{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.onb-sent li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:#f7f6fa}
+.onb-sent li>span{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--green)}
+.onb-sent li>span svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.onb-sent b{display:block;font-size:13px}
+.onb-sent small{color:var(--muted);font-size:11.5px}
+
+@keyframes onbFade{from{opacity:0}to{opacity:1}}
+@keyframes onbRise{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes onbPulse{0%,100%{box-shadow:0 0 0 0 rgba(189,124,18,.28)}50%{box-shadow:0 0 0 14px rgba(189,124,18,0)}}
+@media (max-width:560px){
+  .onb-modal{padding:20px;border-radius:20px}
+  .onb-steps{grid-template-columns:1fr 1fr}
+  .onb-doc{flex-wrap:wrap}
+  .onb-pick{width:100%;text-align:center}
+  .onb-actions{flex-direction:column-reverse}
+  .onb-actions button{width:100%}
+}
+@media (prefers-reduced-motion:reduce){.onb-backdrop,.onb-modal,.onb-pulse{animation:none}}

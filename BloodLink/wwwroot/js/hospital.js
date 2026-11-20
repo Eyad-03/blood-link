@@ -230,7 +230,6 @@ async function loadDashboard(){
   renderRecords();renderInventory();renderDonors();
  }catch(err){toast(err.message)}
 }
-loadDashboard();
 
 /* =====================================================================
    Motion layer — heartbeat-themed interactions
@@ -491,7 +490,6 @@ function initAds(){
  $("cardExpiry").addEventListener("input",e=>{let v=e.target.value.replace(/\D/g,"").slice(0,4);if(v.length>2)v=v.slice(0,2)+"/"+v.slice(2);e.target.value=v});
  $("cardCvc").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,4)});
  // Keep in sync if the public page updates views in another tab.
- ADS.fetchMine().then(list=>{ads=list;renderAds()});   // load my ads from the server
 }
 initAds();
 /* =====================================================================
@@ -643,9 +641,19 @@ function initAppointments(){
  apptDlg.addEventListener("change",e=>{if(e.target.id==="apptConfDate"||e.target.id==="apptConfTime")updateApptCapacity()});
  apptDlg.addEventListener("close",()=>{apptCurrent=null;apptAction=null});
  renderAppointments();
- loadAppointments();
-}
+ }
 initAppointments();
+
+/* =====================================================================
+   Start — load the real data only when BloodLink has approved this hospital.
+   Before that, hospital-onboarding.js shows the verification window.
+   ===================================================================== */
+function startDashboard(){
+ loadDashboard();
+ loadAppointments();
+ if(ADS)ADS.fetchMine().then(list=>{ads=list;renderAds()});
+}
+HospitalOnboarding.start(startDashboard);
 
 // Open a section directly from the URL (e.g. /Hospital#ads from the public page).
 (function(){const h=location.hash.slice(1);if(h&&document.querySelector(`.nav-item[data-section="${CSS.escape(h)}"]`))navigate(h)})();

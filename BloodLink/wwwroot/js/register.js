@@ -581,7 +581,7 @@
   const SUCCESS_TEXT = {
     donor: 'Thank you for choosing to help. You can complete your donor profile after signing in.',
     requester: 'You can create and submit a blood request after signing in.',
-    hospital: 'Your institution will be reviewed by BloodLink administration before institutional permissions are granted.'
+    hospital: 'Sign in and upload your institution documents. BloodLink will review them and then activate your hospital portal.'
   };
   function showSuccess(result, r, name) {
     updateProgress(100);

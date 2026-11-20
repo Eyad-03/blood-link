@@ -125,13 +125,13 @@ function renderAccounts(){
   <td><div class="org-cell">${avatar(a.name)}<div><b>${esc(a.name)}</b><small>${esc(a.id)} · ${esc(a.email)}</small></div></div></td>
   <td>${esc(a.type)}</td><td>${esc(a.city)}</td>
   <td>${fmtDate(a.registeredAt)}<small class="cell-subtext">${timeAgo(a.registeredAt)}</small></td>
-  <td><span class="doc-meter"><i>${[0,1,2].map(i=>`<span class="${a.docs[i]?.checked?"on":""}"></span>`).join("")}</i>${a.docs.length}/3 uploaded</span></td>
-  <td>${accountPill(a.status)}</td>
+  <td><span class="doc-meter"><i>${[0,1,2].map(i=>`<span class="${a.docs[i]?.checked?"on":""}"></span>`).join("")}</i>${a.docs.filter(d=>d.uploaded).length}/3 uploaded</span></td>
+  <td>${a.status==="Pending"&&!a.submitted?'<span class="status-pill pending">Waiting for documents</span>':accountPill(a.status)}</td>
   <td><button class="record-action ${a.status==="Pending"?"verify":"print"}" data-open="account" data-id="${esc(a.id)}">${a.status==="Pending"?"Review":"View"}</button></td></tr>`}).join("")
   ||`<tr><td colspan="7" class="empty-records">No ${accountFilter==="all"?"":accountFilter.toLowerCase()+" "}accounts${q?" match your search":""}.</td></tr>`;
 }
 function accountDrawer(a){
- const done=a.docs.filter(d=>d.checked).length,missing=3-a.docs.length;
+ const done=a.docs.filter(d=>d.checked).length,missing=a.docs.filter(d=>!d.uploaded).length;
  const body=`<header class="drawer-head"><svg class="hero-ecg ecg" data-cycles="4" viewBox="0 0 600 60" preserveAspectRatio="none"><path class="ecg-base"/><path class="ecg-trace"/></svg>
    <div class="org-cell">${avatar(a.name,true)}<div><h2 id="drawerTitle">${esc(a.name)}</h2><p>${esc(a.type)} · ${esc(a.city)} · registered ${timeAgo(a.registeredAt)}</p></div></div>${accountPill(a.status)}</header>
   <section class="drawer-section"><h3>Organization details</h3><div class="info-grid">
@@ -139,8 +139,8 @@ function accountDrawer(a){
    <div><span>Contact person</span><b>${esc(a.contact)}</b></div><div><span>Phone</span><b>${esc(a.phone)}</b></div>
    <div class="wide"><span>Email</span><b>${esc(a.email)}</b></div><div class="wide"><span>Address</span><b>${esc(a.address)}</b></div></div></section>
   <section class="drawer-section"><h3>Submitted documents <small>${done}/3 checked${missing?` · ${missing} missing`:""}</small></h3><div class="doc-list">
-   ${a.docs.map((d,i)=>`<div class="doc-row ${d.checked?"checked":""}"><span class="doc-ic">${ICON.doc}</span><div><b>${esc(d.name)}</b><small>${esc(d.file)} · ${esc(d.size)}</small></div><button class="record-action print" data-preview="${i}">Preview</button>${a.status==="Pending"?`<button class="doc-check" data-check="${i}" aria-pressed="${d.checked}" aria-label="Mark ${esc(d.name)} as verified"></button>`:""}</div>`).join("")}
-   ${missing?`<div class="doc-row"><span class="doc-ic">${ICON.x}</span><div><b>Authorized representative ID</b><small>Not uploaded</small></div></div>`:""}
+   ${a.docs.map((d,i)=>`<div class="doc-row ${d.checked?"checked":""}"><span class="doc-ic">${d.uploaded?ICON.doc:ICON.x}</span><div><b>${esc(d.name)}</b><small>${d.uploaded?`${esc(d.file)} · ${esc(d.size)}`:"Not uploaded yet"}</small></div>${d.uploaded?`<button class="record-action print" data-preview="${i}">Open</button>`:""}${a.status==="Pending"&&d.uploaded?`<button class="doc-check" data-check="${i}" aria-pressed="${d.checked}" aria-label="Mark ${esc(d.name)} as verified"></button>`:""}</div>`).join("")}
+   ${a.status==="Pending"&&!a.submitted?`<p class="hint">The institution has not sent its documents yet. You can review them once it presses "Send for review".</p>`:""}
   </div>${a.status==="Pending"?`<div class="check-progress"><span style="--p:${done/3*100}%"></span></div><p class="hint">Open each document and tick it once verified. Activation unlocks when all 3 are checked.</p>`:""}</section>
   ${a.status==="Pending"?`<section class="drawer-section"><h3>Rejection reason <small>required to reject</small></h3><textarea class="note-field" id="decisionNote" placeholder="e.g. License number could not be verified…"></textarea></section>`
    :a.status==="Active"?`<section class="drawer-section"><div class="final-banner ok"><span>${ICON.check}</span><div><b>Account active</b><br>Activated ${timeAgo(a.decidedAt||a.registeredAt)}. The organization can sign in and use the portal.</div></div></section>`
@@ -301,14 +301,16 @@ $("drawer").addEventListener("click",async e=>{
  if(!drawerState)return;
  const {kind,id}=drawerState;
  const chk=e.target.closest("[data-check]"),prev=e.target.closest("[data-preview]"),act=e.target.closest("[data-act]");
- if(prev){const item=kind==="account"?accounts.find(a=>a.id===id):allBookings().find(b=>b.id===id);const d=kind==="account"?item.docs[prev.dataset.preview]:item.documents[prev.dataset.preview];openDoc(kind==="account"?d.name:d.label,kind==="account"?d.file:d.fileName,item.name||item.organization);return}
+ if(prev){
+  if(kind==="account"){const item=accounts.find(a=>a.id===id);openUploadedDoc(item.docs[prev.dataset.preview],item.name);return}
+  const item=allBookings().find(b=>b.id===id),d=item.documents[prev.dataset.preview];openDoc(d.label,d.fileName,item.organization);return}
  if(chk){
   const a=accounts.find(x=>x.id===id),d=a.docs[chk.dataset.check];
   // PUT /api/admin/accounts/{id}/docs/{docId} — tick / untick one document
   try{const res=await Api.put(`/api/admin/accounts/${encodeURIComponent(id)}/docs/${d.id}`);d.checked=res.checked}catch(err){toast(err.message);return}
   // Update in place so the drawer doesn't replay its entrance animation.
   chk.setAttribute("aria-pressed",String(d.checked));chk.closest(".doc-row").classList.toggle("checked",d.checked);
-  const done=a.docs.filter(x=>x.checked).length,missing=3-a.docs.length;
+  const done=a.docs.filter(x=>x.checked).length,missing=a.docs.filter(x=>!x.uploaded).length;
   const bar=$("drawerBody").querySelector(".check-progress span");if(bar)bar.style.setProperty("--p",`${done/3*100}%`);
   const label=chk.closest(".drawer-section").querySelector("h3 small");if(label)label.textContent=`${done}/3 checked${missing?` · ${missing} missing`:""}`;
   const btn=$("drawerFoot").querySelector('[data-act="activate"]');if(btn)btn.disabled=done<3;
@@ -344,6 +346,18 @@ $("drawer").addEventListener("click",async e=>{
 /* ---------------- Document preview ---------------- */
 function openDoc(title,file,owner){
  $("docSheet").innerHTML=`<div class="doc-brand"><span>♥ BloodLink</span><small style="color:var(--muted);font:600 11px 'DM Sans'">${esc(file)}</small></div><h4>${esc(title)}</h4><p>Issued to <b>${esc(owner)}</b></p><div class="doc-lines">${"<i></i>".repeat(11)}</div><div class="doc-stamp">ON FILE</div><p class="hint" style="margin-top:22px">Demo preview — connect file storage to show the real uploaded document.</p><button class="ghost-button" id="closeDoc">Close preview</button>`;
+ $("docModal").classList.add("open");$("docModal").setAttribute("aria-hidden","false");
+}
+/* A hospital document uploaded on /Hospital — GET /api/admin/documents/{id} (needs the admin token). */
+let docUrl=null;
+async function openUploadedDoc(d,owner){
+ let blob;
+ try{blob=await Api.file(`/api/admin/documents/${d.id}`)}catch(err){toast(err.message);return}
+ if(docUrl)URL.revokeObjectURL(docUrl);
+ docUrl=URL.createObjectURL(blob);
+ const view=blob.type.startsWith("image/")?`<img src="${docUrl}" alt="${esc(d.name)}" style="width:100%;max-height:60vh;object-fit:contain;border-radius:12px;background:#f7f6fa">`
+  :`<iframe src="${docUrl}" title="${esc(d.name)}" style="width:100%;height:60vh;border:1px solid var(--line);border-radius:12px"></iframe>`;
+ $("docSheet").innerHTML=`<div class="doc-brand"><span>♥ BloodLink</span><small style="color:var(--muted);font:600 11px 'DM Sans'">${esc(d.file)} · ${esc(d.size)}</small></div><h4>${esc(d.name)}</h4><p>Uploaded by <b>${esc(owner)}</b></p>${view}<div style="display:flex;gap:10px;margin-top:16px"><a class="ghost-button" href="${docUrl}" download="${esc(d.file)}">Download</a><button class="ghost-button" id="closeDoc">Close preview</button></div>`;
  $("docModal").classList.add("open");$("docModal").setAttribute("aria-hidden","false");
 }
 function closeDoc(){$("docModal").classList.remove("open");$("docModal").setAttribute("aria-hidden","true")}

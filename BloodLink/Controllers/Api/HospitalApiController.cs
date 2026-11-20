@@ -11,6 +11,7 @@ namespace BloodLink.Controllers.Api
     // Everything on the hospital dashboard (/Hospital). Only hospital staff can call it.
     // Each hospital user belongs to one Organization (User.OrganizationId).
     [Authorize(Roles = "Hospital")]
+    [ActiveHospital]   // only after the admin approved the institution (Helpers/ActiveHospitalAttribute.cs)
     [Route("api/hospital")]
     public class HospitalApiController : ApiBaseController
     {

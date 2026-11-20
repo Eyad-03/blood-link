@@ -46,6 +46,9 @@ namespace BloodLink.Models.Entities
         public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
         public DateTime? DecidedAt { get; set; }
 
+        // When the hospital pressed "Send for review" after uploading its documents (null = not sent yet).
+        public DateTime? SubmittedAt { get; set; }
+
         public ICollection<User> Staff { get; set; } = new List<User>();
         public ICollection<OrganizationDocument> Documents { get; set; } = new List<OrganizationDocument>();
         public ICollection<BloodInventory> Inventory { get; set; } = new List<BloodInventory>();
@@ -65,9 +68,15 @@ namespace BloodLink.Models.Entities
         [Required, MaxLength(120)]
         public string Name { get; set; } = string.Empty;
 
+        // Where the file is saved on the server (inside App_Data/uploads, not public).
         [Required, MaxLength(260)]
         public string FilePath { get; set; } = string.Empty;
 
+        // The name of the file on the hospital's computer, e.g. "license.pdf".
+        [MaxLength(200)]
+        public string? FileName { get; set; }
+
+        // null = not uploaded yet
         public long? FileSizeBytes { get; set; }
 
         // Ticked by the admin while reviewing the account.

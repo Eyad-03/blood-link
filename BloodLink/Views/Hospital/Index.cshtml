@@ -381,7 +381,65 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
+<!-- =====================================================================
+     Institution verification — shown until BloodLink approves this hospital.
+     Filled by /js/hospital-onboarding.js. It can't be closed: upload the
+     documents, send them for review, then wait for the admin.
+     ===================================================================== -->
+<div class="onb-backdrop" id="onboarding" hidden>
+  <section class="onb-modal" role="dialog" aria-modal="true" aria-labelledby="onbTitle">
+    <header class="onb-head">
+      <span class="onb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l8 3.2v5.3c0 4.6-3.2 8-8 9.5-4.8-1.5-8-4.9-8-9.5V6.2z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg></span>
+      <div>
+        <span class="section-kicker">ACCOUNT VERIFICATION</span>
+        <h2 id="onbTitle">Verify your institution</h2>
+        <p id="onbSubtitle">Upload the documents below. BloodLink will review them before your portal is activated.</p>
+      </div>
+    </header>
+
+    <ol class="onb-steps" id="onbSteps">
+      <li class="done"><b>✓</b><span>Account created</span></li>
+      <li data-step="upload"><b>2</b><span>Upload documents</span></li>
+      <li data-step="review"><b>3</b><span>BloodLink review</span></li>
+      <li><b>4</b><span>Start using the portal</span></li>
+    </ol>
+
+    <div class="onb-rejected" id="onbRejected" hidden>
+      <b>Your request was not approved</b>
+      <p id="onbReason"></p>
+      <small>Upload the corrected documents and send them again.</small>
+    </div>
+
+    <!-- Step 2: upload -->
+    <div class="onb-body" id="onbUpload">
+      <div class="onb-docs" id="onbDocs"></div>
+      <div class="onb-progress"><span id="onbBar"></span></div>
+      <p class="onb-hint" id="onbCount">0 of 3 documents uploaded · PDF, JPG or PNG · up to 10 MB each</p>
+      <p class="onb-error" id="onbError" hidden></p>
+      <div class="onb-actions">
+        <button class="secondary-button" type="button" data-logout>Sign out</button>
+        <button class="primary-button" type="button" id="onbSubmit" disabled>Send for review <span>→</span></button>
+      </div>
+    </div>
+
+    <!-- Step 3: waiting for the admin -->
+    <div class="onb-body" id="onbWaiting" hidden>
+      <div class="onb-wait">
+        <span class="onb-pulse" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <b>Waiting for approval</b>
+        <p>Your documents were sent to BloodLink. The review usually takes 1–2 working days. This page unlocks by itself once your institution is approved.</p>
+      </div>
+      <ul class="onb-sent" id="onbSent"></ul>
+      <div class="onb-actions">
+        <button class="secondary-button" type="button" data-logout>Sign out</button>
+        <button class="primary-button" type="button" id="onbRefresh">Check status</button>
+      </div>
+    </div>
+  </section>
+</div>
+
 <script src="/js/api.js"></script>
+<script src="/js/hospital-onboarding.js"></script>
 <script src="/js/ads-data.js"></script>
 <script src="/js/hall-bookings.js"></script>
 <script src="/js/hospital.js"></script>

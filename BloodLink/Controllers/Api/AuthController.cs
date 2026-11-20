@@ -93,13 +93,8 @@ namespace BloodLink.Controllers.Api
             if (user.Status == AccountStatus.Suspended)
                 return StatusCode(403, new { message = "Your account is suspended. Please contact BloodLink support." });
 
-            // Hospital staff can sign in only after the admin activates their organization.
-            if (user.Role == UserRole.Hospital)
-            {
-                var org = db.Organizations.Find(user.OrganizationId);
-                if (org == null || org.Status != OrganizationStatus.Active)
-                    return StatusCode(403, new { message = "Your institution is still waiting for BloodLink verification." });
-            }
+            // Hospital staff can sign in even before approval: /Hospital then shows the
+            // verification window (upload documents → wait for the admin). See OnboardingController.
 
             user.LastActiveAt = DateTime.UtcNow;
             db.SaveChanges();

@@ -6,6 +6,8 @@
      await Api.post("/api/requests", { donorId: 5, priority: "Urgent" })
      await Api.put("/api/requests/5/status", { status: "Accepted" })
      Api.requireLogin(["Donor"])   // send the visitor to the login page if needed
+     await Api.upload("/api/...", formData)   // send a file (multipart form)
+     const blob = await Api.file("/api/...")  // download a protected file
 
    The JWT token from /api/auth/login is kept in localStorage and sent
    with every request in the "Authorization: Bearer <token>" header.
@@ -35,12 +37,13 @@
 
   // Sends a request and returns the JSON answer. Throws an Error with the server message if it fails.
   async function request(method, url, body) {
+    const isForm = body instanceof FormData;   // files are sent as a form, everything else as JSON
     const headers = { Accept: "application/json" };
-    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
     const token = getToken();
     if (token) headers.Authorization = "Bearer " + token;
 
-    const res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await fetch(url, { method, headers, body: body === undefined ? undefined : isForm ? body : JSON.stringify(body) });
 
     // Token missing or expired → sign in again.
     if (res.status === 401 && !url.startsWith("/api/auth/")) { logout(); goToLogin(); throw new Error("Please sign in again."); }
@@ -56,6 +59,13 @@
       throw error;
     }
     return data;
+  }
+
+  // Downloads a file that needs the token (e.g. a hospital document for the admin) and returns a Blob.
+  async function file(url) {
+    const res = await fetch(url, { headers: { Authorization: "Bearer " + getToken() } });
+    if (!res.ok) throw new Error(res.status === 404 ? "The file was not found." : "Could not open the file.");
+    return await res.blob();
   }
 
   // Use at the top of a page that needs a signed-in user.
@@ -86,6 +96,8 @@
     post: (url, body) => request("POST", url, body ?? {}),
     put: (url, body) => request("PUT", url, body ?? {}),
     del: (url) => request("DELETE", url),
+    upload: (url, formData) => request("POST", url, formData),
+    file,
     getToken, getUser, saveLogin, logout, requireLogin,
     isLoggedIn: () => !!getToken()
   };

@@ -17,7 +17,12 @@ namespace BloodLink.Controllers.Api
     [Route("api/admin")]
     public class AdminApiController : ApiBaseController
     {
-        public AdminApiController(BloodLinkDbContext db) : base(db) { }
+        private readonly IWebHostEnvironment env;
+
+        public AdminApiController(BloodLinkDbContext db, IWebHostEnvironment env) : base(db)
+        {
+            this.env = env;
+        }
 
         // ---------------- Accounts (organizations) ----------------
 
@@ -42,12 +47,15 @@ namespace BloodLink.Controllers.Api
                 status = o.Status.ToString(),
                 decidedAt = Format.Iso(o.DecidedAt),
                 reason = o.RejectionReason ?? "",
+                submitted = o.SubmittedAt != null,       // the hospital pressed "Send for review"
+                submittedAt = Format.Iso(o.SubmittedAt),
                 docs = o.Documents.OrderBy(d => d.Id).Select(d => new
                 {
                     id = d.Id,
                     name = d.Name,
-                    file = d.FilePath,
-                    size = d.FileSizeBytes == null ? "—" : (d.FileSizeBytes / 1024) + " KB",
+                    uploaded = d.FileSizeBytes != null,
+                    file = d.FileName ?? "Not uploaded yet",
+                    size = UploadStorage.SizeText(d.FileSizeBytes),
                     @checked = d.IsChecked
                 })
             }));
@@ -59,6 +67,7 @@ namespace BloodLink.Controllers.Api
         {
             var doc = db.OrganizationDocuments.FirstOrDefault(d => d.Id == docId && d.OrganizationId == id);
             if (doc == null) return NotFound();
+            if (doc.FileSizeBytes == null) return BadRequest(new { message = "This document was not uploaded yet." });
             doc.IsChecked = !doc.IsChecked;
             db.SaveChanges();
             return Ok(new { @checked = doc.IsChecked });
@@ -72,7 +81,7 @@ namespace BloodLink.Controllers.Api
 
             if (dto.Action == "activate")
             {
-                if (org.Documents.Count < 3 || org.Documents.Any(d => !d.IsChecked))
+                if (org.Documents.Count < 3 || org.Documents.Any(d => d.FileSizeBytes == null || !d.IsChecked))
                     return BadRequest(new { message = "Check all three documents first." });
                 org.Status = OrganizationStatus.Active;
                 org.DecidedAt = DateTime.UtcNow;
@@ -84,6 +93,7 @@ namespace BloodLink.Controllers.Api
                 if (string.IsNullOrWhiteSpace(dto.Note)) return BadRequest(new { message = "Write the rejection reason." });
                 org.Status = OrganizationStatus.Rejected;
                 org.RejectionReason = dto.Note;
+                org.SubmittedAt = null;   // the hospital must upload and send again
                 org.DecidedAt = DateTime.UtcNow;
                 LogAdminAction($"Rejected {org.Name}", "x", "#d41d3d");
             }
@@ -103,6 +113,21 @@ namespace BloodLink.Controllers.Api
 
             db.SaveChanges();
             return Ok();
+        }
+
+        // Opens an uploaded verification document (only admins can call this).
+        [HttpGet("documents/{docId}")]
+        public IActionResult Document(int docId)
+        {
+            var doc = db.OrganizationDocuments.Find(docId);
+            if (doc == null || doc.FileSizeBytes == null) return NotFound();
+
+            string fullPath = UploadStorage.FullPath(env, doc.FilePath);
+            if (!System.IO.File.Exists(fullPath)) return NotFound(new { message = "The file is missing on the server." });
+
+            string ext = Path.GetExtension(fullPath).ToLower();
+            string contentType = UploadStorage.AllowedTypes.GetValueOrDefault(ext, "application/octet-stream");
+            return PhysicalFile(fullPath, contentType);
         }
 
         // ---------------- Users (donors & recipients) ----------------

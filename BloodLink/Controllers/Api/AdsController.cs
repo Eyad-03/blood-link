@@ -47,6 +47,7 @@ namespace BloodLink.Controllers.Api
         }
 
         [Authorize(Roles = "Hospital")]
+        [ActiveHospital]
         [HttpGet("hospital/ads")]
         public IActionResult Mine()
         {
@@ -58,6 +59,7 @@ namespace BloodLink.Controllers.Api
         }
 
         [Authorize(Roles = "Hospital")]
+        [ActiveHospital]
         [HttpPost("hospital/ads")]
         public IActionResult Create(CreateAdDto dto)
         {
@@ -105,6 +107,7 @@ namespace BloodLink.Controllers.Api
         }
 
         [Authorize(Roles = "Hospital")]
+        [ActiveHospital]
         [HttpPut("hospital/ads/{id}/stop")]
         public IActionResult Stop(int id)
         {
