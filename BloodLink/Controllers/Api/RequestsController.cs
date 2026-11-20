@@ -40,8 +40,7 @@ namespace BloodLink.Controllers.Api
                 BloodType = bloodType.Value,
                 Priority = priority,
                 Units = 1,
-                Location = me.City,
-                Message = string.IsNullOrWhiteSpace(dto.Message) ? null : dto.Message.Trim()
+                Location = me.City
             };
             db.BloodRequests.Add(request);
             db.SaveChanges();
@@ -78,7 +77,6 @@ namespace BloodLink.Controllers.Api
                     status = r.Status.ToString(),
                     priority = r.Priority.ToString(),
                     units = r.Units,
-                    message = r.Message ?? "",
                     donorPhone = showContact ? r.Donor.Phone ?? "" : "",
                     donorEmail = showContact ? r.Donor.Email : ""
                 };
@@ -116,7 +114,6 @@ namespace BloodLink.Controllers.Api
                     priority = r.Priority.ToString(),
                     units = r.Units,
                     hospital = r.Hospital?.Name ?? "",
-                    message = r.Message ?? "",
                     recipientPhone = showContact ? r.Recipient.Phone ?? "" : "",
                     recipientEmail = showContact ? r.Recipient.Email : ""
                 };

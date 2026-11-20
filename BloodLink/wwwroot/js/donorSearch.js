@@ -854,11 +854,6 @@ function showModal(donor, isContact) {
         <small class="priority-hint">Only you can set the priority. The donor will see it with your request.</small>
       </fieldset>
 
-      <label class="request-message">
-        <span>Message to the donor <small>(optional)</small></span>
-        <textarea id="requestMessage" rows="3" maxlength="500" placeholder="e.g. My father needs B+ blood at Al Hayat Hospital this week."></textarea>
-      </label>
-
       <div class="modal-warning">Contact details are shared only after the donor accepts your request.</div>
 
       <button class="modal-action" type="button"><span>Send Request</span></button>
@@ -898,12 +893,10 @@ function showModal(donor, isContact) {
         if (user.role !== "Recipient") { showToast("Only \"Need blood\" accounts can send blood requests.", "info"); return; }
         const priority = modal.querySelector("input[name=requestPriority]:checked")?.value || "Normal";
         let request;
-        const message = modal.querySelector("#requestMessage").value.trim();
-        try { request = await saveBloodRequest(donor, priority, message); }
+        try { request = await saveBloodRequest(donor, priority); }
         catch (err) { showToast(err.message, "info"); return; }
         action.classList.add("sent");
         modal.querySelectorAll("input[name=requestPriority]").forEach(input => { input.disabled = true; });
-        modal.querySelector("#requestMessage").disabled = true;
         action.querySelector("span").textContent = "Request sent ✓";
         burstHearts(action);
         showToast(`${priority} request #${request.id} sent to ${donor.name}`, "love");
@@ -923,10 +916,10 @@ function showModal(donor, isContact) {
 
 const PRIORITIES = ["Normal", "High", "Urgent"];
 
-async function saveBloodRequest(donor, priority, message) {
+async function saveBloodRequest(donor, priority) {
     if (!PRIORITIES.includes(priority)) priority = "Normal";
     const neededType = bloodType && bloodType.value ? bloodType.value : donor.type;
-    return await Api.post("/api/requests", { donorId: donor.id, bloodType: neededType, priority, message });
+    return await Api.post("/api/requests", { donorId: donor.id, bloodType: neededType, priority });
 }
 
 /* Little hearts that float up from a button */
