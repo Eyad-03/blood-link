@@ -462,3 +462,9 @@ legend{padding:0}
   .ecg-pulse{stroke-dasharray:none;opacity:.4}
   .burst{display:none}
 }
+/* "Continue with Google" (js/google-auth.js) */
+.google-area{margin-top:18px}
+.google-area[hidden]{display:none}
+.google-or{display:flex;align-items:center;gap:12px;margin-bottom:14px;color:#9a9aa6;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px}
+.google-or span{flex:1;height:1px;background:#ececf1}
+.google-button{display:flex;justify-content:center;min-height:44px}

@@ -96,6 +96,28 @@ The JWT settings are in `appsettings.json` → `Jwt`. Change `Jwt:Key` to your o
 | Anyone | Report an issue | `POST /api/reports` |
 | Admin | Verify hospitals, suspend users, bookings, reports | `/api/admin/...` |
 
+### Sign in with Google
+
+The Login and Register pages show a **"Sign in with Google"** button once a Google Client ID is set
+(without it the button is hidden and everything else works).
+
+1. Open <https://console.cloud.google.com/> → create a project (or pick one).
+2. **APIs & Services → OAuth consent screen**: choose *External*, fill the app name and your email, save.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - Application type: **Web application**
+   - Authorized JavaScript origins: `https://localhost:7080` and `http://localhost:5080`
+     (add your real domain later)
+4. Copy the **Client ID** (ends with `.apps.googleusercontent.com`) into `appsettings.json`:
+   ```json
+   "Google": { "ClientId": "1234567890-abc.apps.googleusercontent.com" }
+   ```
+
+How it works: `google-auth.js` shows Google's button → Google gives the browser a signed
+`credential` → `POST /api/auth/google` checks it with `GoogleJsonWebSignature.ValidateAsync`
+(package `Google.Apis.Auth`) → we answer with **our own JWT**, like a normal login.
+On the Register page the role (and hospital / city details) are taken from the form.
+On the Login page an email without an account gets "Create an account first".
+
 ### Rest period after a donation
 
 When a donation is recorded (request completed, appointment completed, hospital record, or added on the
