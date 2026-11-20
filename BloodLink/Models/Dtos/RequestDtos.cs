@@ -6,6 +6,7 @@ namespace BloodLink.Models.Dtos
         public int DonorId { get; set; }
         public string? BloodType { get; set; }        // the blood type the recipient needs
         public string Priority { get; set; } = "Normal";
+        public int HospitalId { get; set; }            // where the donation will happen
     }
 
     // Donor answers a request: Accepted / Declined / Completed.

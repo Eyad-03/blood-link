@@ -33,6 +33,10 @@ namespace BloodLink.Controllers.Api
 
             if (!Enum.TryParse(dto.Priority, out RequestPriority priority)) priority = RequestPriority.Normal;
 
+            // The hospital must be a verified (active) hospital or center.
+            var hospital = db.Organizations.FirstOrDefault(o => o.Id == dto.HospitalId && o.Status == OrganizationStatus.Active);
+            if (hospital == null) return BadRequest(new { message = "Please choose the hospital where the donation will happen." });
+
             var request = new BloodRequest
             {
                 RecipientId = me.Id,
@@ -40,6 +44,7 @@ namespace BloodLink.Controllers.Api
                 BloodType = bloodType.Value,
                 Priority = priority,
                 Units = 1,
+                HospitalId = hospital.Id,
                 Location = me.City
             };
             db.BloodRequests.Add(request);
@@ -56,6 +61,7 @@ namespace BloodLink.Controllers.Api
             var rows = db.BloodRequests
                 .Include(r => r.Donor)
                 .Include(r => r.Recipient)   // needed for the distance
+                .Include(r => r.Hospital)
                 .Where(r => r.RecipientId == CurrentUserId)
                 .OrderByDescending(r => r.CreatedAt)
                 .ToList();
@@ -77,6 +83,7 @@ namespace BloodLink.Controllers.Api
                     status = r.Status.ToString(),
                     priority = r.Priority.ToString(),
                     units = r.Units,
+                    hospital = r.Hospital?.Name ?? "",
                     donorPhone = showContact ? r.Donor.Phone ?? "" : "",
                     donorEmail = showContact ? r.Donor.Email : ""
                 };

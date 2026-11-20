@@ -7,6 +7,7 @@
 
 /* Donors come from the backend: GET /api/donors (Controllers/Api/DonorsController.cs) */
 let sampleDonors = [];
+let hospitals = [];   // verified hospitals / centers for the request window — GET /api/facilities
 
 async function loadDonors() {
     try {
@@ -15,6 +16,10 @@ async function loadDonors() {
         sampleDonors = [];
         showToast("Could not load donors: " + err.message, "info");
     }
+}
+
+async function loadHospitals() {
+    try { hospitals = await Api.get("/api/facilities"); } catch { hospitals = []; }
 }
 
 /* Red-cell compatibility: patient type -> donor types that can give to them */
@@ -854,6 +859,14 @@ function showModal(donor, isContact) {
         <small class="priority-hint">Only you can set the priority. The donor will see it with your request.</small>
       </fieldset>
 
+      <label class="request-hospital">
+        <span>Hospital for the donation</span>
+        <select id="requestHospital">
+          <option value="">Choose a hospital</option>
+          ${hospitals.map(h => `<option value="${h.id}">${escapeHTML(h.name)} · ${escapeHTML(h.city)}</option>`).join("")}
+        </select>
+      </label>
+
       <div class="modal-warning">Contact details are shared only after the donor accepts your request.</div>
 
       <button class="modal-action" type="button"><span>Send Request</span></button>
@@ -893,10 +906,13 @@ function showModal(donor, isContact) {
         if (user.role !== "Recipient") { showToast("Only \"Need blood\" accounts can send blood requests.", "info"); return; }
         const priority = modal.querySelector("input[name=requestPriority]:checked")?.value || "Normal";
         let request;
-        try { request = await saveBloodRequest(donor, priority); }
+        const hospitalId = modal.querySelector("#requestHospital").value;
+        if (!hospitalId) { showToast("Please choose the hospital where the donation will happen.", "info"); modal.querySelector("#requestHospital").focus(); return; }
+        try { request = await saveBloodRequest(donor, priority, hospitalId); }
         catch (err) { showToast(err.message, "info"); return; }
         action.classList.add("sent");
         modal.querySelectorAll("input[name=requestPriority]").forEach(input => { input.disabled = true; });
+        modal.querySelector("#requestHospital").disabled = true;
         action.querySelector("span").textContent = "Request sent ✓";
         burstHearts(action);
         showToast(`${priority} request #${request.id} sent to ${donor.name}`, "love");
@@ -916,10 +932,10 @@ function showModal(donor, isContact) {
 
 const PRIORITIES = ["Normal", "High", "Urgent"];
 
-async function saveBloodRequest(donor, priority) {
+async function saveBloodRequest(donor, priority, hospitalId) {
     if (!PRIORITIES.includes(priority)) priority = "Normal";
     const neededType = bloodType && bloodType.value ? bloodType.value : donor.type;
-    return await Api.post("/api/requests", { donorId: donor.id, bloodType: neededType, priority });
+    return await Api.post("/api/requests", { donorId: donor.id, bloodType: neededType, priority, hospitalId: Number(hospitalId) });
 }
 
 /* Little hearts that float up from a button */
@@ -1296,6 +1312,7 @@ initDonorMap();
 renderCompatPanel();
 
 // Load the donors from the server, then show them.
+loadHospitals();
 loadDonors().then(() => {
     initStats();
     renderDonors();
