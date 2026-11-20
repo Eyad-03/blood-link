@@ -94,6 +94,10 @@ namespace BloodLink.Models.Entities
 
         public DateTime? PaidAt { get; set; }
 
+        // The Stripe payment (pi_...) that paid for this booking.
+        [MaxLength(100)]
+        public string? PaymentIntentId { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public ICollection<HallBookingDocument> Documents { get; set; } = new List<HallBookingDocument>();

@@ -22,12 +22,6 @@ namespace BloodLink.Models.Dtos
         public string FileName { get; set; } = "";
     }
 
-    // Payment of an approved booking.
-    public class PayDto
-    {
-        public string Method { get; set; } = "card";
-    }
-
     // Admin decision on a booking / report / account / user.
     public class AdminDecisionDto
     {

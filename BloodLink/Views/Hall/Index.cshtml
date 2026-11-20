@@ -115,13 +115,18 @@
       <div class="modal-heading"><span class="modal-icon">▣</span><div><span class="eyebrow">Confirm booking</span><h2 id="paymentTitle">Online payment</h2><p id="paymentHallName">—</p></div></div>
       <div class="approved-banner"><span>✓</span><div><b>Your request has been approved</b><small>You can now complete payment to confirm your booking.</small></div></div>
       <div class="payment-summary"><span>Booking fee</span><strong id="paymentAmount">—</strong></div>
-      <div class="payment-methods"><label><input type="radio" name="paymentMethod" value="Bank card" checked><span>▣</span> Bank card</label><label><input type="radio" name="paymentMethod" value="E-wallet"><span>◈</span> E-wallet</label></div>
-      <p class="payment-demo">Demo interface only — no real payment will be charged.</p>
+      <div class="visa-pay">
+        <div class="visa-pay-head"><b>Card details</b><span class="visa-badge" aria-label="Visa only">VISA</span></div>
+        <div class="stripe-card" id="hallCard"></div>
+        <small class="visa-note">Only Visa cards are accepted. Payments are processed securely by Stripe — BloodLink never sees your card number.</small>
+      </div>
+      <p class="pay-error" id="hallPayError" role="alert" hidden></p>
       <button class="primary-btn full-width" id="confirmPayment">Confirm payment and complete booking</button>
     </section>
   </div>
   <div class="toast" id="toast" role="status"></div>
   <script src="/js/api.js"></script>
+  <script src="/js/stripe-pay.js"></script>
   <script src="/js/hall.js"></script>
 </body>
 </html>

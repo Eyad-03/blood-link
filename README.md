@@ -96,6 +96,34 @@ The JWT settings are in `appsettings.json` → `Jwt`. Change `Jwt:Key` to your o
 | Anyone | Report an issue | `POST /api/reports` |
 | Admin | Verify hospitals, suspend users, bookings, reports | `/api/admin/...` |
 
+### Payments — Visa only, with Stripe
+
+Every payment on BloodLink (hospital ads, hall bookings on the dashboard and on the Hall page)
+uses **Stripe** and accepts **Visa cards only**.
+
+How it works (`stripe-pay.js` + `Controllers/Api/PaymentsController.cs`):
+1. The card field is Stripe's own form — the card number never reaches our server.
+2. Stripe gives the browser a PaymentMethod id (`pm_...`); our server asks Stripe which card it is
+   and refuses anything that is not Visa, **before** taking money.
+3. The server takes the amount from the database (never from the browser) and confirms a PaymentIntent.
+4. If the bank asks for 3D Secure, Stripe shows it, then `POST /api/payments/confirm` finishes.
+5. A new ad is saved as "awaiting payment" and only appears after it is paid.
+
+Setup:
+1. Create an account on <https://dashboard.stripe.com/> and stay in **Test mode**.
+2. **Developers → API keys**: copy the *Publishable key* (`pk_test_...`) and the *Secret key* (`sk_test_...`).
+3. Put the publishable key in `appsettings.json` → `Stripe:PublishableKey`.
+4. Put the **secret key** in User Secrets (never in Git): in Visual Studio right-click the project →
+   **Manage User Secrets** and add:
+   ```json
+   { "Stripe": { "SecretKey": "sk_test_..." } }
+   ```
+5. `Stripe:Currency` is `jod` (change it to `usd` if your Stripe account can't charge JOD).
+
+Test cards (any future expiry, any CVC): `4242 4242 4242 4242` Visa ✓ ·
+`4000 0025 0000 3155` Visa with 3D Secure · `5555 5555 5555 4444` Mastercard ✗ (refused) ·
+`4000 0000 0000 0002` declined.
+
 ### Sign in with Google
 
 The Login and Register pages show a **"Sign in with Google"** button once a Google Client ID is set
@@ -149,4 +177,3 @@ Dashboard APIs use `[ActiveHospital]` (`Helpers/ActiveHospitalAttribute.cs`) so 
 - Uploaded files for hall bookings and report attachments — only the file names are saved
   (hospital verification documents ARE uploaded).
 - Real emails for the certificate — `POST /api/send-certificate` only records who it was sent to.
-- Payments are demo payments — only the payment method is saved.

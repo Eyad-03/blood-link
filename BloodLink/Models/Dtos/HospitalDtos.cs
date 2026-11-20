@@ -37,6 +37,5 @@ namespace BloodLink.Models.Dtos
         public bool Booking { get; set; }
         public string Plan { get; set; } = "basic";        // basic | featured | premium
         public string StartDate { get; set; } = "";
-        public string? PayMethod { get; set; }
     }
 }

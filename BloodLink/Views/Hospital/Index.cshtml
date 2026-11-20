@@ -302,23 +302,14 @@
     <div class="checkout-step" data-step="pay">
       <header class="checkout-head"><div><span class="section-kicker">SECURE CHECKOUT</span><h2 id="checkoutTitle">Pay to publish your ad</h2></div><button class="checkout-close" type="button" data-close aria-label="Close">×</button></header>
       <div class="checkout-order"><div><b id="coTitle">—</b><small id="coMeta">—</small></div><strong id="coTotal">—</strong></div>
-      <fieldset class="pay-methods"><legend>Payment method</legend>
-        <label class="pay-method"><input type="radio" name="method" value="card" checked><span><b>Credit / debit card</b><small>Visa, Mastercard</small></span></label>
-        <label class="pay-method"><input type="radio" name="method" value="cliq"><span><b>CliQ transfer</b><small>Instant bank transfer</small></span></label>
-        <label class="pay-method"><input type="radio" name="method" value="invoice"><span><b>Invoice hospital account</b><small>Added to monthly bill</small></span></label>
-      </fieldset>
-      <div class="pay-fields" data-method="card">
-        <label class="record-wide">Name on card<input id="cardName" autocomplete="off" placeholder="Al Hayat Hospital"></label>
-        <label class="record-wide">Card number<input id="cardNumber" inputmode="numeric" autocomplete="off" placeholder="1234 5678 9012 3456" maxlength="19"></label>
-        <label>Expiry<input id="cardExpiry" inputmode="numeric" autocomplete="off" placeholder="MM/YY" maxlength="5"></label>
-        <label>CVC<input id="cardCvc" inputmode="numeric" autocomplete="off" placeholder="123" maxlength="4"></label>
+      <div class="visa-pay">
+        <div class="visa-pay-head"><b>Card details</b><span class="visa-badge" aria-label="Visa only">VISA</span></div>
+        <div class="stripe-card" id="adCard"></div>
+        <small class="visa-note">Only Visa cards are accepted. Payments are processed securely by Stripe — BloodLink never sees your card number.</small>
       </div>
-      <div class="pay-fields" data-method="cliq" hidden><p class="pay-info">Send the total to CliQ alias <b>BLOODLINKADS</b> with reference <b id="cliqRef">—</b>, then confirm below.</p><label class="record-wide">Transfer reference number<input id="cliqTxn" autocomplete="off" placeholder="e.g. 4F82KQ19"></label></div>
-      <div class="pay-fields" data-method="invoice" hidden><p class="pay-info">The total will be added to the hospital's next monthly BloodLink invoice. The ad goes live on the selected date.</p></div>
       <p class="form-error" id="payError" role="alert" hidden></p>
       <label class="check-label terms"><input type="checkbox" id="adTerms"> I confirm this ad is accurate and agree that the posting fee is non-refundable once the ad is live.</label>
       <button class="primary-button full-width" id="payButton" type="button">Pay <span id="payAmount">—</span></button>
-      <p class="demo-note center">Demo checkout — no real payment is processed and card details are never stored. Connect a payment gateway before going live.</p>
     </div>
     <div class="checkout-step processing" data-step="processing" hidden><div class="spinner-drop"></div><b>Processing payment…</b><small>Please don't close this window.</small></div>
     <div class="checkout-step success" data-step="success" hidden>
@@ -345,23 +336,14 @@
     <div class="checkout-step" data-hb-step="pay">
       <header class="checkout-head"><div><span class="section-kicker">SECURE CHECKOUT</span><h2 id="hbPayTitle">Pay for hall booking</h2></div><button class="checkout-close" type="button" data-hb-close aria-label="Close">×</button></header>
       <div class="checkout-order"><div><b id="hbCoTitle">—</b><small id="hbCoMeta">—</small></div><strong id="hbCoTotal">—</strong></div>
-      <fieldset class="pay-methods"><legend>Payment method</legend>
-        <label class="pay-method"><input type="radio" name="hbMethod" value="card" checked><span><b>Credit / debit card</b><small>Visa, Mastercard</small></span></label>
-        <label class="pay-method"><input type="radio" name="hbMethod" value="cliq"><span><b>CliQ transfer</b><small>Instant bank transfer</small></span></label>
-        <label class="pay-method"><input type="radio" name="hbMethod" value="invoice"><span><b>Invoice hospital account</b><small>Added to monthly bill</small></span></label>
-      </fieldset>
-      <div class="pay-fields" data-hb-method="card">
-        <label class="record-wide">Name on card<input id="hbCardName" autocomplete="off" placeholder="Al Hayat Hospital"></label>
-        <label class="record-wide">Card number<input id="hbCardNumber" inputmode="numeric" autocomplete="off" placeholder="1234 5678 9012 3456" maxlength="23"></label>
-        <label>Expiry<input id="hbCardExpiry" inputmode="numeric" autocomplete="off" placeholder="MM/YY" maxlength="5"></label>
-        <label>CVC<input id="hbCardCvc" inputmode="numeric" autocomplete="off" placeholder="123" maxlength="4"></label>
+      <div class="visa-pay">
+        <div class="visa-pay-head"><b>Card details</b><span class="visa-badge" aria-label="Visa only">VISA</span></div>
+        <div class="stripe-card" id="hbCard"></div>
+        <small class="visa-note">Only Visa cards are accepted. Payments are processed securely by Stripe — BloodLink never sees your card number.</small>
       </div>
-      <div class="pay-fields" data-hb-method="cliq" hidden><p class="pay-info">Send the total to CliQ alias <b>BLOODLINKHALLS</b> with reference <b id="hbCliqRef">—</b>, then confirm below.</p><label class="record-wide">Transfer reference number<input id="hbCliqTxn" autocomplete="off" placeholder="e.g. 4F82KQ19"></label></div>
-      <div class="pay-fields" data-hb-method="invoice" hidden><p class="pay-info">The booking fee will be added to the hospital's next monthly BloodLink invoice and the hall is confirmed right away.</p></div>
       <p class="form-error" id="hbPayError" role="alert" hidden></p>
       <label class="check-label terms"><input type="checkbox" id="hbTerms"> I confirm the booking details and accept the venue's cancellation policy.</label>
       <button class="primary-button full-width" id="hbPayButton" type="button">Pay <span id="hbPayAmount">—</span></button>
-      <p class="demo-note center">Demo checkout — no real payment is processed and card details are never stored.</p>
     </div>
     <div class="checkout-step processing" data-hb-step="processing" hidden><div class="spinner-drop"></div><b>Processing payment…</b><small>Please don't close this window.</small></div>
     <div class="checkout-step success" data-hb-step="success" hidden>
@@ -440,6 +422,7 @@
 
 <script src="/js/api.js"></script>
 <script src="/js/hospital-onboarding.js"></script>
+<script src="/js/stripe-pay.js"></script>
 <script src="/js/ads-data.js"></script>
 <script src="/js/hall-bookings.js"></script>
 <script src="/js/hospital.js"></script>

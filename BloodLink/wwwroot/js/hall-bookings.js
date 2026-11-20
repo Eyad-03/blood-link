@@ -1,7 +1,7 @@
 /* =====================================================================
    Hall bookings — hospital dashboard section
    Shows the hall bookings this hospital account made and lets it pay:
-     GET  /api/halls/bookings/mine, POST /api/halls/bookings/{id}/pay
+     GET  /api/halls/bookings/mine, POST /api/payments/hall-booking/{id} (Visa via Stripe)
    Status values stay compatible: "Pending approval" | "Approved" | "Paid" | "Rejected"
    ===================================================================== */
 (function () {
@@ -132,7 +132,7 @@
 
   /* ---------- Payment pop-up ---------- */
   const showStep = step => payDlg.querySelectorAll("[data-hb-step]").forEach(s => (s.hidden = s.dataset.hbStep !== step));
-  const method = () => payDlg.querySelector('input[name="hbMethod"]:checked')?.value || "card";
+  let hbCard = null;   // the Stripe card field (stripe-pay.js), created the first time the dialog opens
   const isProcessing = () => !payDlg.querySelector('[data-hb-step="processing"]').hidden;
 
   function openPayment(id) {
@@ -145,50 +145,34 @@
     byId("hbCoMeta").textContent = `${r.id} · ${dateLabel(r.eventDate)}${r.eventTime ? " · " + r.eventTime : ""}`;
     byId("hbCoTotal").textContent = money(r.price);
     byId("hbPayAmount").textContent = money(r.price);
-    byId("hbCliqRef").textContent = r.id;
     byId("hbPayError").hidden = true;
     byId("hbTerms").checked = false;
-    ["hbCardNumber", "hbCardExpiry", "hbCardCvc", "hbCliqTxn"].forEach(f => (byId(f).value = ""));
-    byId("hbCardName").value = (byId("hospitalName")?.value || "Al Hayat Hospital").trim();
-    const card = payDlg.querySelector('input[name="hbMethod"][value="card"]'); card.checked = true;
-    payDlg.querySelectorAll("[data-hb-method]").forEach(p => (p.hidden = p.dataset.hbMethod !== "card"));
     showStep("pay");
     open(payDlg);
-    setTimeout(() => byId("hbCardNumber").focus(), 50);
+    if (hbCard) hbCard.clear();
+    else StripePay.mount(byId("hbCard"), byId("hbPayError"))
+      .then(c => { hbCard = c; })
+      .catch(err => { byId("hbPayError").hidden = false; byId("hbPayError").textContent = err.message; byId("hbPayButton").disabled = true; });
   }
 
-  function luhn(num) { let s = 0, alt = false; for (let i = num.length - 1; i >= 0; i--) { let n = +num[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } s += n; alt = !alt; } return s % 10 === 0; }
-  function validate() {
-    const m = method();
-    if (m === "card") {
-      const num = byId("hbCardNumber").value.replace(/\s/g, ""), exp = byId("hbCardExpiry").value, cvc = byId("hbCardCvc").value;
-      if (!byId("hbCardName").value.trim()) return "Enter the name on the card.";
-      if (!/^\d{13,19}$/.test(num) || !luhn(num)) return "Enter a valid card number.";
-      const mm = /^(\d{2})\/(\d{2})$/.exec(exp);
-      if (!mm || +mm[1] < 1 || +mm[1] > 12) return "Enter the expiry as MM/YY.";
-      const now = new Date(), y = 2000 + +mm[2];
-      if (y < now.getFullYear() || (y === now.getFullYear() && +mm[1] < now.getMonth() + 1)) return "This card has expired.";
-      if (!/^\d{3,4}$/.test(cvc)) return "Enter a valid CVC.";
-    }
-    if (m === "cliq" && byId("hbCliqTxn").value.trim().length < 4) return "Enter the CliQ transfer reference.";
-    if (!byId("hbTerms").checked) return "Please confirm the booking details.";
-    return "";
-  }
+  // Visa payment with Stripe — POST /api/payments/hall-booking/{id} (the server takes the price from the database).
   async function pay() {
-    const err = validate(), box = byId("hbPayError");
-    box.hidden = !err; box.textContent = err; if (err) return;
-    const m = method();
+    const box = byId("hbPayError");
+    const fail = msg => { showStep("pay"); box.hidden = false; box.textContent = msg; };
+    if (!hbCard) return fail("The payment form is not ready yet.");
+    if (!byId("hbTerms").checked) return fail("Please confirm the booking details.");
+    box.hidden = true;
     showStep("processing");
-    // POST /api/halls/bookings/{id}/pay — card details are never sent, only the method.
-    let r;
-    try { r = await Api.post(`/api/halls/bookings/${encodeURIComponent(payingId)}/pay`, { method: m }); }
-    catch (err) { showStep("pay"); box.hidden = false; box.textContent = err.message; loadRequests(); return; }
+    let result;
+    try { result = await hbCard.pay(`/api/payments/hall-booking/${encodeURIComponent(payingId)}`); }
+    catch (err) { fail(err.message); loadRequests(); return; }
     await loadRequests();
-    ["hbCardNumber", "hbCardExpiry", "hbCardCvc"].forEach(f => (byId(f).value = ""));
+    hbCard.clear();
+    const r = readRequests().find(x => String(x.id) === String(payingId));
     byId("hbSuccessText").textContent = `${r.hallName} is booked for ${dateLabel(r.eventDate)}. The status is now “Booking confirmed”.`;
     byId("hbRcptId").textContent = r.receipt;
     byId("hbRcptAmount").textContent = money(r.amountPaid);
-    byId("hbRcptMethod").textContent = { card: "Card", cliq: "CliQ transfer", invoice: "Monthly invoice" }[m];
+    byId("hbRcptMethod").textContent = `Visa •••• ${result.last4}`;
     showStep("success");
     render();
     celebrate();
@@ -209,15 +193,7 @@
   detailsDlg.addEventListener("click", e => { if (e.target.closest("[data-hb-close]") || e.target === detailsDlg) close(detailsDlg); });
   payDlg.addEventListener("click", e => { if (isProcessing()) return; if (e.target.closest("[data-hb-close]") || e.target === payDlg) close(payDlg); });
   payDlg.addEventListener("cancel", e => { if (isProcessing()) e.preventDefault(); });
-  payDlg.addEventListener("change", e => {
-    if (e.target.name !== "hbMethod") return;
-    payDlg.querySelectorAll("[data-hb-method]").forEach(p => (p.hidden = p.dataset.hbMethod !== e.target.value));
-    byId("hbPayError").hidden = true;
-  });
   byId("hbPayButton").addEventListener("click", pay);
-  byId("hbCardNumber").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 19).replace(/(\d{4})(?=\d)/g, "$1 "); });
-  byId("hbCardExpiry").addEventListener("input", e => { let v = e.target.value.replace(/\D/g, "").slice(0, 4); if (v.length > 2) v = v.slice(0, 2) + "/" + v.slice(2); e.target.value = v; });
-  byId("hbCardCvc").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4); });
 
   // Refresh when the user comes back to the tab (the admin may have approved a booking).
   window.addEventListener("focus", loadRequests);

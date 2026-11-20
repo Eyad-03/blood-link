@@ -12,7 +12,7 @@ namespace BloodLink.Controllers.Api
     //   GET  /api/halls                       list of halls (public)
     //   POST /api/halls/bookings              send a booking request
     //   GET  /api/halls/bookings/mine         my booking requests
-    //   POST /api/halls/bookings/{id}/pay     pay an approved booking
+    //   (paying an approved booking: POST /api/payments/hall-booking/{id} — PaymentsController)
     [Route("api/halls")]
     public class HallsController : ApiBaseController
     {
@@ -91,24 +91,6 @@ namespace BloodLink.Controllers.Api
                 .OrderByDescending(b => b.CreatedAt)
                 .ToList();
             return Ok(list.Select(ToJson));
-        }
-
-        [Authorize]
-        [HttpPost("bookings/{id}/pay")]
-        public IActionResult Pay(int id, PayDto dto)
-        {
-            var booking = db.HallBookings.Include(b => b.Hall).Include(b => b.Documents)
-                .FirstOrDefault(b => b.Id == id && b.RequestedById == CurrentUserId);
-            if (booking == null) return NotFound();
-            if (booking.Status != HallBookingStatus.Approved)
-                return BadRequest(new { message = "This request is no longer awaiting payment." });
-
-            // Demo payment: we only record the method (card details are never sent to the server).
-            booking.Status = HallBookingStatus.Paid;
-            booking.PaymentMethod = dto.Method;
-            booking.PaidAt = DateTime.UtcNow;
-            db.SaveChanges();
-            return Ok(ToJson(booking));
         }
 
         // "PendingApproval" -> "Pending approval" (the text used by the pages)

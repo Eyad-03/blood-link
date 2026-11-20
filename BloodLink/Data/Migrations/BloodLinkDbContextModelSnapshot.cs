@@ -64,6 +64,9 @@ namespace BloodLink.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("AwaitingPayment")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Badge")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
@@ -110,6 +113,10 @@ namespace BloodLink.Data.Migrations
 
                     b.Property<int>("OrganizationId")
                         .HasColumnType("int");
+
+                    b.Property<string>("PaymentIntentId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Phone")
                         .HasMaxLength(30)
@@ -833,6 +840,10 @@ namespace BloodLink.Data.Migrations
 
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("PaymentIntentId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("PaymentMethod")
                         .HasMaxLength(40)

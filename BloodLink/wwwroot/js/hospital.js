@@ -404,58 +404,49 @@ function renderAds(){
 /* ---------- Checkout ---------- */
 const dlg=$("checkoutDialog");
 function showStep(step){dlg.querySelectorAll(".checkout-step").forEach(s=>s.hidden=s.dataset.step!==step)}
-function selectedMethod(){return dlg.querySelector('input[name="method"]:checked')?.value||"card"}
+// Visa payment with Stripe (stripe-pay.js). The card field is created the first time the dialog opens.
+let adCard=null;        // the Stripe card field
+let unpaidAdId=null;    // the ad created on the server and waiting for payment (reused if the card fails)
 function openCheckout(){
  const ad=readAdForm(),err=validateAd(ad),box=$("adFormError");
  box.hidden=!err;box.textContent=err;
  if(err){$("adForm").reportValidity?.();box.scrollIntoView({behavior:"smooth",block:"center"});return}
- pendingAd=ad;
+ pendingAd=ad;unpaidAdId=null;
  const f=ADS.fees(selectedPlan),p=ADS.PLANS[selectedPlan];
  $("coTitle").textContent=ad.title;
  $("coMeta").textContent=`${p.name} plan · ${p.days} days · live from ${ADS.formatDate(ad.startDate)}`;
  $("coTotal").textContent=ADS.money(f.total);$("payAmount").textContent=ADS.money(f.total);
- $("cliqRef").textContent=ADS.nextId(ads);
  $("payError").hidden=true;$("adTerms").checked=false;
- ["cardNumber","cardExpiry","cardCvc","cliqTxn"].forEach(id=>$(id).value="");
- $("cardName").value=hospitalName();
  showStep("pay");
  if(typeof dlg.showModal==="function")dlg.showModal();else dlg.setAttribute("open","");
+ if(adCard)adCard.clear();
+ else StripePay.mount($("adCard"),$("payError")).then(c=>{adCard=c}).catch(e=>{$("payError").hidden=false;$("payError").textContent=e.message;$("payButton").disabled=true});
 }
 function closeCheckout(){if(dlg.open)dlg.close();else dlg.removeAttribute("open")}
-function luhn(num){let s=0,alt=false;for(let i=num.length-1;i>=0;i--){let n=+num[i];if(alt){n*=2;if(n>9)n-=9}s+=n;alt=!alt}return s%10===0}
-function validatePayment(){
- const m=selectedMethod();
- if(m==="card"){
-  const num=$("cardNumber").value.replace(/\s/g,""),exp=$("cardExpiry").value,cvc=$("cardCvc").value;
-  if(!$("cardName").value.trim())return "Enter the name on the card.";
-  if(!/^\d{13,19}$/.test(num)||!luhn(num))return "Enter a valid card number.";
-  const mm=/^(\d{2})\/(\d{2})$/.exec(exp);if(!mm||+mm[1]<1||+mm[1]>12)return "Enter the expiry as MM/YY.";
-  const now=new Date(),y=2000+ +mm[2];if(y<now.getFullYear()||(y===now.getFullYear()&&+mm[1]<now.getMonth()+1))return "This card has expired.";
-  if(!/^\d{3,4}$/.test(cvc))return "Enter a valid CVC.";
- }
- if(m==="cliq"&&$("cliqTxn").value.trim().length<4)return "Enter the CliQ transfer reference.";
- if(!$("adTerms").checked)return "Please confirm the ad details and fee terms.";
- return "";
-}
 async function pay(){
- const err=validatePayment(),box=$("payError");box.hidden=!err;box.textContent=err;if(err)return;
- const m=selectedMethod();
+ const box=$("payError");
+ const fail=msg=>{showStep("pay");box.hidden=false;box.textContent=msg};
+ if(!adCard)return fail("The payment form is not ready yet.");
+ if(!$("adTerms").checked)return fail("Please confirm the ad details and fee terms.");
+ box.hidden=true;
  showStep("processing");
- // POST /api/hospital/ads — the server calculates the fee and returns the saved ad.
- let ad;
- try{ad=await Api.post("/api/hospital/ads",{...pendingAd,payMethod:m})}
- catch(err){showStep("pay");const box=$("payError");box.hidden=false;box.textContent=err.message;return}
- ads.unshift(ad);
- // Card details are intentionally discarded; only the method is recorded.
- ["cardNumber","cardExpiry","cardCvc"].forEach(id=>$(id).value="");
- const live=ADS.status(ad)==="Active";
- $("successText").textContent=live?`"${ad.title}" is now live on the public ads page until ${ADS.formatDate(ad.endDate)}.`:`"${ad.title}" is scheduled to go live on ${ADS.formatDate(ad.startDate)}.`;
- $("rcptId").textContent=ad.receipt;$("rcptAmount").textContent=ADS.money(ad.paid);
- $("rcptMethod").textContent={card:"Card",cliq:"CliQ transfer",invoice:"Monthly invoice"}[m];
- $("viewPublicAd").href=`/Home/Ads#${encodeURIComponent(ad.id)}`;
- showStep("success");
- $("adForm").reset();resetAdFormDefaults();updateAdPreview();renderAds();bloodBurst("#13895f");
- toast(`Payment received — ${ad.id} ${live?"is live":"is scheduled"}.`);
+ try{
+  // 1. Save the ad (hidden until paid). If a card failed before, pay the same ad again.
+  if(!unpaidAdId)unpaidAdId=(await Api.post("/api/hospital/ads",pendingAd)).id;
+  // 2. Pay with Visa — the server calculates the amount.
+  const result=await adCard.pay(`/api/payments/ad/${unpaidAdId}`);
+  // 3. Reload my ads to show the paid one.
+  ads=await ADS.fetchMine();
+  const ad=ads.find(a=>a.id===unpaidAdId);unpaidAdId=null;adCard.clear();
+  const live=ADS.status(ad)==="Active";
+  $("successText").textContent=live?`"${ad.title}" is now live on the public ads page until ${ADS.formatDate(ad.endDate)}.`:`"${ad.title}" is scheduled to go live on ${ADS.formatDate(ad.startDate)}.`;
+  $("rcptId").textContent=ad.receipt;$("rcptAmount").textContent=ADS.money(ad.paid);
+  $("rcptMethod").textContent=`Visa •••• ${result.last4}`;
+  $("viewPublicAd").href=`/Home/Ads#${encodeURIComponent(ad.id)}`;
+  showStep("success");
+  $("adForm").reset();resetAdFormDefaults();updateAdPreview();renderAds();bloodBurst("#13895f");
+  toast(`Payment received — ${ad.id} ${live?"is live":"is scheduled"}.`);
+ }catch(err){fail(err.message)}
 }
 function resetAdFormDefaults(){
  const t=ADS.today();
@@ -484,11 +475,7 @@ function initAds(){
  // Checkout interactions
  dlg.addEventListener("click",e=>{if(!dlg.querySelector('[data-step="processing"]').hidden)return;if(e.target.closest("[data-close]")||e.target===dlg)closeCheckout()});
  dlg.addEventListener("cancel",e=>{if(!dlg.querySelector('[data-step="processing"]').hidden)e.preventDefault()});
- dlg.addEventListener("change",e=>{if(e.target.name==="method"){dlg.querySelectorAll(".pay-fields").forEach(p=>p.hidden=p.dataset.method!==e.target.value);$("payError").hidden=true}});
  $("payButton").addEventListener("click",pay);
- $("cardNumber").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,19).replace(/(\d{4})(?=\d)/g,"$1 ")});
- $("cardExpiry").addEventListener("input",e=>{let v=e.target.value.replace(/\D/g,"").slice(0,4);if(v.length>2)v=v.slice(0,2)+"/"+v.slice(2);e.target.value=v});
- $("cardCvc").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,4)});
  // Keep in sync if the public page updates views in another tab.
 }
 initAds();

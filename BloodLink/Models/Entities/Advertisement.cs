@@ -49,6 +49,13 @@ namespace BloodLink.Models.Entities
         public int Views { get; set; }
         public bool IsCancelled { get; set; }
 
+        // true while the ad is created but not paid yet (it is hidden until the Visa payment succeeds).
+        public bool AwaitingPayment { get; set; }
+
+        // The Stripe payment (pi_...) that paid for this ad.
+        [MaxLength(100)]
+        public string? PaymentIntentId { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

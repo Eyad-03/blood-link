@@ -771,3 +771,15 @@ body.onb-open{overflow:hidden}
   .onb-actions button{width:100%}
 }
 @media (prefers-reduced-motion:reduce){.onb-backdrop,.onb-modal,.onb-pulse{animation:none}}
+
+/* Visa payment with Stripe (stripe-pay.js) */
+.visa-pay{display:grid;gap:8px}
+.visa-pay-head{display:flex;align-items:center;justify-content:space-between;font-size:13px}
+.visa-badge{font:italic 900 13px/1 Arial,sans-serif;letter-spacing:.5px;color:#fff;background:#1a1f71;padding:5px 9px;border-radius:6px}
+.stripe-card{padding:13px 14px;border:1px solid #e4e2ea;border-radius:12px;background:#fff;transition:border-color .2s,box-shadow .2s}
+.stripe-card.StripeElement--focus{border-color:#d41d3d;box-shadow:0 0 0 4px rgba(212,29,61,.1)}
+.stripe-card.StripeElement--invalid{border-color:#c91835}
+.visa-note{color:#7a7b8d;font-size:11.5px;line-height:1.5}
+.pay-error{margin:8px 0 0;padding:9px 12px;border-radius:10px;background:#fff0f3;color:#9e0d28;font-size:12.5px;font-weight:600}
+.pay-error[hidden]{display:none}
+#payButton[disabled],#hbPayButton[disabled],#confirmPayment[disabled]{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}

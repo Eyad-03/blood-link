@@ -12,7 +12,7 @@ namespace BloodLink.Controllers.Api
     //   GET  /api/ads                     all ads (public Ads page + home page)
     //   POST /api/ads/{id}/view           count one view
     //   GET  /api/hospital/ads            my hospital's ads
-    //   POST /api/hospital/ads            create (and pay for) an ad
+    //   POST /api/hospital/ads            create an ad (hidden until it is paid: POST /api/payments/ad/{id})
     //   PUT  /api/hospital/ads/{id}/stop  stop an ad
     [Route("api")]
     public class AdsController : ApiBaseController
@@ -32,6 +32,7 @@ namespace BloodLink.Controllers.Api
         public IActionResult All()
         {
             var ads = db.Advertisements.Include(a => a.Organization)
+                .Where(a => !a.AwaitingPayment)   // unpaid ads are not shown
                 .OrderByDescending(a => a.CreatedAt).ToList();
             return Ok(ads.Select(ToJson));
         }
@@ -53,7 +54,7 @@ namespace BloodLink.Controllers.Api
         {
             int orgId = CurrentUser()?.OrganizationId ?? 0;
             var ads = db.Advertisements.Include(a => a.Organization)
-                .Where(a => a.OrganizationId == orgId)
+                .Where(a => a.OrganizationId == orgId && !a.AwaitingPayment)
                 .OrderByDescending(a => a.CreatedAt).ToList();
             return Ok(ads.Select(ToJson));
         }
@@ -97,7 +98,8 @@ namespace BloodLink.Controllers.Api
                 EndDate = startDate.AddDays(plan.Days - 1),
                 Fee = plan.Price,
                 Vat = vat,
-                TotalPaid = plan.Price + vat
+                TotalPaid = plan.Price + vat,
+                AwaitingPayment = true   // becomes visible after the Visa payment
             };
             db.Advertisements.Add(ad);
             db.SaveChanges();

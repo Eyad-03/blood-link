@@ -33,7 +33,11 @@ function renderRequests(){
  if(!rows.length){$("requestsList").innerHTML='<div class="empty-requests">No requests yet.<br>Your request will appear here after you choose a venue and submit the documents.</div>';return}
  $("requestsList").innerHTML=[...rows].reverse().map(r=>{const [label,cls]=statusInfo(r.status);return `<article class="request-card"><div><h3>${esc(r.hallName)}</h3><p>Request ID: ${esc(r.id)} · ${esc(r.eventDate)} · ${esc(r.organization)}</p><p style="margin-top:5px">Booking fee: ${money(r.price)}</p></div><span class="request-status ${cls}">${label}</span>${r.status==="Approved"?`<div class="request-actions"><button class="small-btn pay" data-pay="${esc(r.id)}">Pay and confirm booking</button></div>`:""}</article>`}).join("");
 }
-function openPayment(id){const r=readRequests().find(x=>x.id===id);if(!r||r.status!=="Approved")return;selectedPaymentRequest=id;$("paymentHallName").textContent=r.hallName;$("paymentAmount").textContent=money(r.price);openModal("paymentModal")}
+// Visa payment with Stripe (stripe-pay.js). The card field is created the first time.
+let hallCard=null;
+function openPayment(id){const r=readRequests().find(x=>x.id===id);if(!r||r.status!=="Approved")return;selectedPaymentRequest=id;$("paymentHallName").textContent=r.hallName;$("paymentAmount").textContent=money(r.price);$("hallPayError").hidden=true;openModal("paymentModal");
+ if(hallCard)hallCard.clear();
+ else StripePay.mount($("hallCard"),$("hallPayError")).then(c=>{hallCard=c}).catch(e=>{$("hallPayError").hidden=false;$("hallPayError").textContent=e.message;$("confirmPayment").disabled=true})}
 $("searchInput").addEventListener("input",renderHalls);
 ["governorateFilter","entityFilter","eventFilter","capacityFilter","sortFilter"].forEach(id=>$(id).addEventListener("change",renderHalls));
 function resetFilters(){["searchInput","governorateFilter","entityFilter","eventFilter","capacityFilter"].forEach(id=>$(id).value="");$("sortFilter").value="recommended";renderHalls()}
@@ -61,9 +65,12 @@ $("bookingForm").addEventListener("submit",async e=>{
 $("myBookingsBtn").addEventListener("click",async()=>{if(!Api.isLoggedIn()){showToast("Please sign in to see your requests.");return}await loadRequests();openModal("requestsModal")});
 $("requestsList").addEventListener("click",e=>{const pay=e.target.closest("[data-pay]");if(pay)openPayment(pay.dataset.pay)});
 $("confirmPayment").addEventListener("click",async()=>{
- if(!selectedPaymentRequest)return;const r=readRequests().find(x=>x.id===selectedPaymentRequest);if(!r||r.status!=="Approved")return;
- const method=document.querySelector('input[name="paymentMethod"]:checked')?.value||"Bank card";
- try{await Api.post(`/api/halls/bookings/${encodeURIComponent(r.id)}/pay`,{method})}catch(err){showToast(err.message);return}
- closeModal("paymentModal");await loadRequests();showToast("Payment recorded and booking confirmed.");
+ if(!selectedPaymentRequest||!hallCard)return;const r=readRequests().find(x=>x.id===selectedPaymentRequest);if(!r||r.status!=="Approved")return;
+ const btn=$("confirmPayment"),label=btn.textContent;btn.disabled=true;btn.textContent="Processing payment…";
+ // POST /api/payments/hall-booking/{id} — Visa only, the server takes the price from the database.
+ try{const result=await hallCard.pay(`/api/payments/hall-booking/${encodeURIComponent(r.id)}`);
+  closeModal("paymentModal");hallCard.clear();await loadRequests();showToast(`Paid with Visa •••• ${result.last4}. Your booking is confirmed.`)}
+ catch(err){$("hallPayError").hidden=false;$("hallPayError").textContent=err.message}
+ finally{btn.disabled=false;btn.textContent=label}
 });
 renderHalls();renderRequests();loadHalls();loadRequests();
